@@ -1,0 +1,7 @@
+.*
+!.clang-format
+!.editorconfig
+!.gitignore
+
+subprojects/*
+!subprojects/inih.wrap
