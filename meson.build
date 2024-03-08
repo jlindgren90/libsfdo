@@ -33,8 +33,6 @@ add_project_arguments(cc.get_supported_arguments([
   '-D_POSIX_C_SOURCE=200809L',
 ]), language: 'c')
 
-threads = dependency('threads')
-
 # TODO: drop in favor of a desktop entry format library
 inih = subproject(
   'inih',
