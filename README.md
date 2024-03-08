@@ -1,8 +1,28 @@
-# libwyrm
+# libsfdo
 
-A C library to convert strings to numbers and vice versa.
+A collection of libraries which implement [Freedesktop.org specifications].
 
-See `include/wyrm.h` for documentation.
+See respective header files for documentation.
+
+[Freedesktop.org specifications]: https://specifications.freedesktop.org/
+
+## Status
+
+Specifications not listed below are out of libsfdo's scope. Specifications marked as N/A are yet to be evaluated as to whether they need to be implemented by libsfdo.
+
+Specification | Library
+-|-
+autostart-spec | N/A
+basedir-spec | `libsfdo-basedir`
+desktop-entry-spec | **TODO**
+icon-theme-spec | `libsfdo-icon`
+mime-apps-spec | N/A
+menu-spec | N/A
+recent-file-spec | N/A
+shared-mime-info-spec | N/A
+sound-theme-spec | **TODO**
+thumbnail-spec | N/A
+trash-spec | **TODO**
 
 ## Building
 
