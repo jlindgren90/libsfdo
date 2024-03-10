@@ -127,12 +127,12 @@ foreach template : libs
 
   deps = template.get('deps', [])
   foreach sfdo_dep : template.get('sfdo-deps', [])
-    deps += get_variable('sfdo_' + sfdo_dep)
+    deps += get_variable('sfdo_' + sfdo_dep.underscorify())
   endforeach
 
   lib = library(
     'sfdo-' + name,
-    get_variable('sfdo_' + name + '_src'),
+    get_variable('sfdo_' + name.underscorify() + '_src'),
     include_directories: include_dir,
     dependencies: deps,
     version: soversion,
@@ -144,7 +144,7 @@ foreach template : libs
     link_with: lib,
   )
 
-  set_variable('sfdo_' + name, dep)
+  set_variable('sfdo_' + name.underscorify(), dep)
 
   full_name = 'libsfdo-' + name
 
