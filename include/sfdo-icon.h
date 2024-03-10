@@ -18,6 +18,10 @@ enum sfdo_icon_file_format {
 
 struct sfdo_icon_file;
 
+enum sfdo_icon_theme_load_options {
+	SFDO_ICON_THEME_LOAD_OPTIONS_DEFAULT = 0,
+};
+
 enum sfdo_icon_theme_lookup_options {
 	SFDO_ICON_THEME_LOOKUP_OPTIONS_DEFAULT = 0,
 
@@ -31,10 +35,11 @@ void sfdo_icon_ctx_destroy(struct sfdo_icon_ctx *ctx);
 void sfdo_icon_ctx_set_log_handler(struct sfdo_icon_ctx *ctx, enum sfdo_log_level level,
 		sfdo_log_handler_func_t func, void *data);
 
-struct sfdo_icon_theme *sfdo_icon_theme_load(struct sfdo_icon_ctx *ctx, const char *name);
+struct sfdo_icon_theme *sfdo_icon_theme_load(
+		struct sfdo_icon_ctx *ctx, const char *name, int options);
 
 struct sfdo_icon_theme *sfdo_icon_theme_load_from(struct sfdo_icon_ctx *ctx, const char *name,
-		const struct sfdo_string *basedirs, size_t n_basedirs);
+		const struct sfdo_string *basedirs, size_t n_basedirs, int options);
 
 void sfdo_icon_theme_destroy(struct sfdo_icon_theme *theme);
 

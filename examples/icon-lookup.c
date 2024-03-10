@@ -75,7 +75,8 @@ int main(int argc, char **argv) {
 	sfdo_icon_ctx_set_log_handler(
 			ctx, debug ? SFDO_LOG_LEVEL_DEBUG : SFDO_LOG_LEVEL_ERROR, log_handler, NULL);
 
-	struct sfdo_icon_theme *theme = sfdo_icon_theme_load(ctx, theme_name);
+	struct sfdo_icon_theme *theme =
+			sfdo_icon_theme_load(ctx, theme_name, SFDO_ICON_THEME_LOAD_OPTIONS_DEFAULT);
 	if (theme == NULL) {
 		fprintf(stderr, "Failed to load the icon theme\n");
 		goto err_load;

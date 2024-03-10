@@ -598,13 +598,15 @@ err_theme:
 	return NULL;
 }
 
-SFDO_API struct sfdo_icon_theme *sfdo_icon_theme_load(struct sfdo_icon_ctx *ctx, const char *name) {
-	return sfdo_icon_theme_load_from(ctx, name, ctx->default_basedirs, ctx->default_n_basedirs);
+SFDO_API struct sfdo_icon_theme *sfdo_icon_theme_load(
+		struct sfdo_icon_ctx *ctx, const char *name, int options) {
+	return sfdo_icon_theme_load_from(
+			ctx, name, ctx->default_basedirs, ctx->default_n_basedirs, options);
 }
 
 SFDO_API struct sfdo_icon_theme *sfdo_icon_theme_load_from(struct sfdo_icon_ctx *ctx,
-		const char *name, const struct sfdo_string *basedirs, size_t n_basedirs) {
-	(void)ctx;
+		const char *name, const struct sfdo_string *basedirs, size_t n_basedirs, int options) {
+	(void)options;
 
 	struct sfdo_icon_theme *theme = theme_create(ctx, basedirs, n_basedirs);
 	if (theme == NULL) {
