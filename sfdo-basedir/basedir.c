@@ -287,5 +287,5 @@ SFDO_API const struct sfdo_string *sfdo_basedir_get_cache_home(struct sfdo_based
 }
 
 SFDO_API const struct sfdo_string *sfdo_basedir_get_runtime_dir(struct sfdo_basedir_ctx *ctx) {
-	return ctx->runtime_dir.data != NULL ? &ctx->runtime_dir : NULL;
+	return &ctx->runtime_dir;
 }
