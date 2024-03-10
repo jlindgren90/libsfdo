@@ -84,13 +84,19 @@ int main(int argc, char **argv) {
 
 	struct sfdo_icon_file *file =
 			sfdo_icon_theme_lookup_best(theme, names, n_names, size, scale, options);
-	if (file != NULL) {
-		printf("%s\n", sfdo_icon_file_get_path(file, NULL));
+	if (file == NULL) {
+		fprintf(stderr, "Failed to look up an icon\n");
+		goto err_lookup;
 	}
-	sfdo_icon_file_destroy(file);
+
+	if (file != sfdo_icon_file_none) {
+		printf("%s\n", sfdo_icon_file_get_path(file, NULL));
+		sfdo_icon_file_destroy(file);
+	}
 
 	ok = true;
 
+err_lookup:
 	sfdo_icon_theme_destroy(theme);
 err_load:
 	sfdo_icon_ctx_destroy(ctx);

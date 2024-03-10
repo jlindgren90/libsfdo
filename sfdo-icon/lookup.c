@@ -11,9 +11,18 @@
 
 struct sfdo_icon_file {
 	enum sfdo_icon_file_format format;
+	char *path;
 	size_t path_len;
-	char path[];
 };
+
+// Must be never read from
+static struct sfdo_icon_file file_none = {
+	.format = SFDO_ICON_FILE_FORMAT_PNG,
+	.path = NULL,
+	.path_len = 0,
+};
+
+SFDO_API const struct sfdo_icon_file *const sfdo_icon_file_none = &file_none;
 
 // SPEC: the algorithm in the specification results in suboptimal matches
 static bool curr_is_better(const struct sfdo_icon_image *best, int best_dist,
@@ -169,27 +178,37 @@ SFDO_API struct sfdo_icon_file *sfdo_icon_theme_lookup_best(struct sfdo_icon_the
 		}
 	}
 
-	return NULL;
+	return &file_none;
 
 found:
 	assert((node == NULL) == (img->subdir == NULL));
 
 	size_t path_len;
 	if (node != NULL) {
-		// basedir (with slash), node name, slash, subdir, slash, icon name, dot, extension,
-		// null terminator
+		// basedir (with slash), node name, slash, subdir, slash, icon name, dot, extension
 		path_len = img->basedir->len + node->name_len + 1 + img->subdir->path.len + 1 +
-				strlen(img_name) + 1 + EXTENSION_LEN + 1;
+				strlen(img_name) + 1 + EXTENSION_LEN;
 	} else {
-		// basedir (with slash), icon name, dot, extension, null terminator
-		path_len = img->basedir->len + strlen(img_name) + 1 + EXTENSION_LEN + 1;
+		// basedir (with slash), icon name, dot, extension
+		path_len = img->basedir->len + strlen(img_name) + 1 + EXTENSION_LEN;
 	}
 
-	struct sfdo_icon_file *file = calloc(1, sizeof(*file) + path_len);
+	size_t path_size = path_len + 1;
+
+	struct sfdo_icon_file *file = calloc(1, sizeof(*file));
 	if (file == NULL) {
 		logger_write_oom(logger);
 		return NULL;
 	}
+
+	file->path = malloc(path_size);
+	if (file->path == NULL) {
+		logger_write_oom(logger);
+		free(file);
+		return NULL;
+	}
+
+	file->path_len = path_len;
 
 	formats &= img->formats;
 	if ((formats & SFDO_ICON_FORMAT_MASK_PNG) != 0) {
@@ -209,10 +228,11 @@ found:
 	};
 
 	if (node != NULL) {
-		snprintf(file->path, path_len, "%s%s/%s/%s.%s", img->basedir->data, node->name,
+		snprintf(file->path, path_size, "%s%s/%s/%s.%s", img->basedir->data, node->name,
 				img->subdir->path.data, img_name, exts[file->format]);
 	} else {
-		snprintf(file->path, path_len, "%s%s.%s", img->basedir->data, img_name, exts[file->format]);
+		snprintf(
+				file->path, path_size, "%s%s.%s", img->basedir->data, img_name, exts[file->format]);
 	}
 
 	return file;
@@ -223,10 +243,15 @@ SFDO_API void sfdo_icon_file_destroy(struct sfdo_icon_file *file) {
 		return;
 	}
 
+	assert(file != sfdo_icon_file_none);
+
+	free(file->path);
 	free(file);
 }
 
 SFDO_API const char *sfdo_icon_file_get_path(struct sfdo_icon_file *file, size_t *len) {
+	assert(file != &file_none);
+
 	if (len != NULL) {
 		*len = file->path_len;
 	}
@@ -234,5 +259,7 @@ SFDO_API const char *sfdo_icon_file_get_path(struct sfdo_icon_file *file, size_t
 }
 
 SFDO_API enum sfdo_icon_file_format sfdo_icon_file_get_format(struct sfdo_icon_file *file) {
+	assert(file != &file_none);
+
 	return file->format;
 }

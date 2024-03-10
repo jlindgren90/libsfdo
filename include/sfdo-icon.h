@@ -28,6 +28,8 @@ enum sfdo_icon_theme_lookup_options {
 	SFDO_ICON_THEME_LOOKUP_OPTION_NO_SVG = (1 << 0),
 };
 
+extern const struct sfdo_icon_file *const sfdo_icon_file_none;
+
 struct sfdo_icon_ctx *sfdo_icon_ctx_create(struct sfdo_basedir_ctx *basedir_ctx);
 
 void sfdo_icon_ctx_destroy(struct sfdo_icon_ctx *ctx);
