@@ -140,7 +140,7 @@ SFDO_API struct sfdo_icon_file *sfdo_icon_theme_lookup_best(struct sfdo_icon_the
 	}
 
 	int formats = SFDO_ICON_FORMAT_MASK_PNG | SFDO_ICON_FORMAT_MASK_XPM;
-	if ((options & SFDO_ICON_THEME_LOAD_OPTION_NO_SVG) == 0) {
+	if ((options & SFDO_ICON_THEME_LOOKUP_OPTION_NO_SVG) == 0) {
 		formats |= SFDO_ICON_FORMAT_MASK_SVG;
 	}
 

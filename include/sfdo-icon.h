@@ -18,17 +18,17 @@ enum sfdo_icon_file_format {
 
 struct sfdo_icon_file;
 
-enum sfdo_icon_theme_load_options {
-	SFDO_ICON_THEME_LOAD_OPTIONS_DEFAULT = 0,
+enum sfdo_icon_theme_lookup_options {
+	SFDO_ICON_THEME_LOOKUP_OPTIONS_DEFAULT = 0,
 
-	SFDO_ICON_THEME_LOAD_OPTION_NO_SVG = (1 << 0),
+	SFDO_ICON_THEME_LOOKUP_OPTION_NO_SVG = (1 << 0),
 };
 
 struct sfdo_icon_ctx *sfdo_icon_ctx_create(struct sfdo_basedir_ctx *basedir_ctx);
 
 void sfdo_icon_ctx_destroy(struct sfdo_icon_ctx *ctx);
 
-void sfdo_icon_set_log_handler(struct sfdo_icon_ctx *ctx, enum sfdo_log_level level,
+void sfdo_icon_ctx_set_log_handler(struct sfdo_icon_ctx *ctx, enum sfdo_log_level level,
 		sfdo_log_handler_func_t func, void *data);
 
 struct sfdo_icon_theme *sfdo_icon_theme_load(struct sfdo_icon_ctx *ctx, const char *name);

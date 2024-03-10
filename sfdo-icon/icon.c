@@ -97,7 +97,7 @@ SFDO_API void sfdo_icon_ctx_destroy(struct sfdo_icon_ctx *ctx) {
 	free(ctx);
 }
 
-SFDO_API void sfdo_icon_set_log_handler(struct sfdo_icon_ctx *ctx, enum sfdo_log_level level,
+SFDO_API void sfdo_icon_ctx_set_log_handler(struct sfdo_icon_ctx *ctx, enum sfdo_log_level level,
 		sfdo_log_handler_func_t func, void *data) {
 	logger_configure(&ctx->logger, level, func, data);
 }

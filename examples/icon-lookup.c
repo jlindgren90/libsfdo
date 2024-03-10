@@ -24,7 +24,7 @@ static void die_usage(const char *prog) {
 }
 
 int main(int argc, char **argv) {
-	int options = SFDO_ICON_THEME_LOAD_OPTIONS_DEFAULT;
+	int options = SFDO_ICON_THEME_LOOKUP_OPTIONS_DEFAULT;
 	bool debug = false;
 
 	char *prog = argv[0];
@@ -32,7 +32,7 @@ int main(int argc, char **argv) {
 	while ((opt = getopt(argc, argv, "DS")) != -1) {
 		switch (opt) {
 		case 'S':
-			options |= SFDO_ICON_THEME_LOAD_OPTION_NO_SVG;
+			options |= SFDO_ICON_THEME_LOOKUP_OPTION_NO_SVG;
 			break;
 		case 'D':
 			debug = true;
@@ -72,7 +72,7 @@ int main(int argc, char **argv) {
 		goto err_icon;
 	}
 
-	sfdo_icon_set_log_handler(
+	sfdo_icon_ctx_set_log_handler(
 			ctx, debug ? SFDO_LOG_LEVEL_DEBUG : SFDO_LOG_LEVEL_ERROR, log_handler, NULL);
 
 	struct sfdo_icon_theme *theme = sfdo_icon_theme_load(ctx, theme_name);
