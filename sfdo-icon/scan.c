@@ -6,6 +6,7 @@
 #include <sys/stat.h>
 
 #include "api.h"
+#include "grow.h"
 #include "icon.h"
 #include "strpool.h"
 
@@ -110,20 +111,10 @@ bool icon_scanner_add_image(struct sfdo_icon_scanner *scanner, const struct sfdo
 	struct sfdo_logger *logger = scanner->logger;
 
 	struct sfdo_icon_state *state = &scanner->state;
-	if (scanner->images_len == scanner->images_cap) {
-		if (scanner->images_cap > SIZE_MAX / 2 / sizeof(*state->images)) {
-			logger_write_oom(logger);
-			return false;
-		}
-		size_t new_cap = scanner->images_cap == 0 ? 256 : scanner->images_cap * 2;
-		struct sfdo_icon_image *new_images =
-				realloc(state->images, new_cap * sizeof(*state->images));
-		if (new_images == NULL) {
-			logger_write_oom(logger);
-			return false;
-		}
-		state->images = new_images;
-		scanner->images_cap = new_cap;
+	if (scanner->images_len == scanner->images_cap &&
+			!sfdo_grow(&state->images, &scanner->images_cap, sizeof(*state->images))) {
+		logger_write_oom(logger);
+		return false;
 	}
 
 	struct sfdo_icon_image_list *image_list = sfdo_hashmap_get(&state->map, name, true);

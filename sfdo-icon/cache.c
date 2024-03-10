@@ -11,6 +11,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include "grow.h"
 #include "icon.h"
 
 struct sfdo_icon_cache_image {
@@ -139,19 +140,10 @@ static bool load_cache(struct sfdo_icon_cache *cache, struct sfdo_logger *logger
 					goto err_format;
 				}
 
-				if (images_len == images_cap) {
-					if (images_cap > SIZE_MAX / 2 / sizeof(*cache->images)) {
-						goto err_format;
-					}
-					size_t new_cap = images_cap == 0 ? 256 : images_cap * 2;
-					struct sfdo_icon_cache_image *new_images =
-							realloc(cache->images, new_cap * sizeof(*cache->images));
-					if (new_images == NULL) {
-						logger_write_oom(logger);
-						return false;
-					}
-					cache->images = new_images;
-					images_cap = new_cap;
+				if (images_len == images_cap &&
+						!sfdo_grow(&cache->images, &images_cap, sizeof(*cache->images))) {
+					logger_write_oom(logger);
+					return false;
 				}
 
 				struct sfdo_icon_cache_dir *dir = &cache->dirs[dir_i];

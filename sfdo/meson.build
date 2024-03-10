@@ -1,3 +1,7 @@
+private_grow_src = files(
+  'grow.c',
+)
+
 private_hash_src = files(
   'hash.c',
 )

@@ -62,6 +62,9 @@ subdir('sfdo')
 
 private_libs = [
   {
+    'name': 'grow',
+  },
+  {
     'name': 'hash',
   },
   {
@@ -102,6 +105,7 @@ libs = [
     'name': 'icon',
     'deps': [
       inih,
+      private_grow,
       private_hash,
       private_log,
       private_strbuild,
