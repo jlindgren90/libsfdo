@@ -33,29 +33,6 @@ add_project_arguments(cc.get_supported_arguments([
   '-D_POSIX_C_SOURCE=200809L',
 ]), language: 'c')
 
-# TODO: drop in favor of a desktop entry format library
-inih = subproject(
-  'inih',
-  default_options: [
-    'default_library=static',
-    'distro_install=false',
-    'with_INIReader=false',
-
-    'multi-line_entries=false',
-    'utf-8_bom=false',
-    'inline_comments=false',
-    'start-of-line_comment_prefix=#',
-    'allow_no_value=false',
-    'stop_on_first_error=true',
-    'report_line_numbers=false',
-    'call_handler_on_new_section=true',
-    'use_heap=true',
-    'max_line_length=65536',
-    'initial_malloc_size=1024',
-    'allow_realloc=true',
-  ],
-).get_variable('inih_dep')
-
 include_dir = include_directories('include')
 
 subdir('sfdo')
@@ -112,7 +89,6 @@ libs = [
   {
     'name': 'icon',
     'deps': [
-      inih,
       private_grow,
       private_hash,
       private_log,
@@ -121,6 +97,7 @@ libs = [
     ],
     'sfdo-deps': [
       'basedir',
+      'desktop-file',
     ],
     'description': 'Icon theme specification implementation in C',
   },

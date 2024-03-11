@@ -4,4 +4,3 @@
 !.gitignore
 
 subprojects/*
-!subprojects/inih.wrap
