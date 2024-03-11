@@ -6,6 +6,12 @@ examples = [
     ],
   },
   {
+    'name': 'desktop-file-load',
+    'deps': [
+      sfdo_desktop_file,
+    ],
+  },
+  {
     'name': 'icon-lookup',
     'deps': [
       sfdo_basedir,

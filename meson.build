@@ -102,6 +102,14 @@ libs = [
     'description': 'XDG base directory specification implementation in C',
   },
   {
+    'name': 'desktop-file',
+    'deps': [
+      private_grow,
+      private_hash,
+    ],
+    'description': 'Desktop entry file format parser library',
+  },
+  {
     'name': 'icon',
     'deps': [
       inih,
