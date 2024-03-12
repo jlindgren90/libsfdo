@@ -1,50 +1,109 @@
 #include <errno.h>
+#include <getopt.h>
 #include <sfdo-desktop-file.h>
+#include <stdlib.h>
 #include <string.h>
 
-static bool entry_handler(const struct sfdo_desktop_file_group_entry *entry, void *data) {
-	(void)data;
-	printf("  %s: %s\n", entry->key, entry->value);
+struct query {
+	const char *group_name;
+	const char *key;
+};
+
+struct ctx {
+	struct query *queries;
+	size_t n_queries;
+};
+
+static bool start_handler(struct sfdo_desktop_file_group *group, void *data) {
+	struct ctx *ctx = data;
+
+	const char *name = sfdo_desktop_file_group_get_name(group, NULL);
+
+	for (size_t i = 0; i < ctx->n_queries; i++) {
+		struct query *query = &ctx->queries[i];
+		if (strcmp(query->group_name, name) == 0) {
+			struct sfdo_desktop_file_entry *entry =
+					sfdo_desktop_file_group_get_entry(group, query->key);
+			if (entry != NULL) {
+				const char *value = sfdo_desktop_file_entry_get_value(entry, NULL);
+				printf("%s/%s: %s\n", name, query->key, value);
+				break;
+			}
+		}
+	}
+
 	return true;
 }
 
-static bool end_handler(const struct sfdo_desktop_file_group *group, void *data) {
-	(void)group;
-	(void)data;
-	return true;
-}
-
-static bool start_handler(const struct sfdo_desktop_file_group *group, void *data,
-		sfdo_desktop_file_group_entry_handler_t *out_entry_handler,
-		sfdo_desktop_file_group_end_handler_t *out_end_handler) {
-	(void)data;
-	printf("%s:\n", group->name);
-	*out_entry_handler = entry_handler;
-	*out_end_handler = end_handler;
-	return true;
+static void die_usage(const char *prog) {
+	printf("Usage: %s [-l locale] <path> [group:key...]\n", prog);
+	exit(1);
 }
 
 int main(int argc, char **argv) {
-	if (argc < 2 || argc > 3) {
-		fprintf(stderr, "Usage: %s <path> [locale]\n", argv[0]);
-		return 1;
+	const char *locale = NULL;
+
+	char *prog = argv[0];
+	int opt;
+	while ((opt = getopt(argc, argv, "l:")) != -1) {
+		switch (opt) {
+		case 'l':
+			locale = optarg;
+			break;
+		default:
+			die_usage(prog);
+		}
 	}
 
-	const char *path = argv[1];
+	argv += optind;
+	argc -= optind;
+
+	if (argc < 1) {
+		die_usage(prog);
+	}
+
+	const char *path = argv[0];
 	FILE *fp = fopen(path, "r");
 	if (fp == NULL) {
 		fprintf(stderr, "Failed to open: %s: %s\n", path, strerror(errno));
 		return 1;
 	}
 
-	const char *locale = NULL;
-	if (argc == 3) {
-		locale = argv[2];
+	argv += 1;
+	argc -= 1;
+
+	struct ctx ctx = {
+		.n_queries = (size_t)argc,
+		.queries = NULL,
+	};
+
+	if (argc > 0) {
+		ctx.queries = calloc(ctx.n_queries, sizeof(*ctx.queries));
+		if (ctx.queries == NULL) {
+			fprintf(stderr, "Memory allocation error\n");
+			return 1;
+		}
+	}
+
+	for (size_t i = 0; i < ctx.n_queries; i++) {
+		char *query_s = argv[i];
+		char *key_p = strchr(query_s, '/');
+		if (key_p == NULL) {
+			printf("hm?\n");
+			die_usage(prog);
+		}
+		*(key_p++) = '\0';
+		struct query *query = &ctx.queries[i];
+		query->group_name = query_s;
+		query->key = key_p;
 	}
 
 	struct sfdo_desktop_file_error error;
-	bool ok = sfdo_desktop_file_load(fp, &error, locale, start_handler, NULL);
+	bool ok = sfdo_desktop_file_load(
+			fp, &error, locale, start_handler, &ctx, SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT);
 	fclose(fp);
+
+	free(ctx.queries);
 
 	if (!ok) {
 		fprintf(stderr, "%d:%d: %s\n", error.line, error.column,

@@ -12,7 +12,7 @@
 
 #define N_LOCALES_MAX 4
 
-struct sfdo_desktop_file_localized_entry {
+struct sfdo_desktop_file_entry {
 	struct sfdo_hashmap_entry base;
 	char *key;
 	size_t key_len;
@@ -29,17 +29,17 @@ struct sfdo_desktop_file_seen_group {
 };
 
 struct sfdo_desktop_file_loader {
-	sfdo_desktop_file_group_start_handler_t group_start_func;
-	sfdo_desktop_file_group_entry_handler_t group_entry_func;
-	sfdo_desktop_file_group_end_handler_t group_end_func;
+	sfdo_desktop_file_group_handler_t group_handler;
 	void *user_data;
 
-	struct sfdo_desktop_file_seen_group *curr_group;
+	struct sfdo_desktop_file_seen_group *groups;
+
+	const char *curr_group_name;
 	size_t curr_group_name_len;
 	int curr_group_line, curr_group_column;
 
 	struct sfdo_hashmap group_set; // sfdo_hashmap_entry
-	struct sfdo_hashmap entries; // sfdo_desktop_file_localized_entry
+	struct sfdo_hashmap entries; // sfdo_desktop_file_entry
 
 	int32_t rune;
 	char rune_bytes[4];
@@ -54,30 +54,13 @@ struct sfdo_desktop_file_loader {
 	int line, column;
 	FILE *fp;
 	struct sfdo_desktop_file_error *error;
+
+	bool allow_duplicate_groups;
 };
 
-static bool noop_group_entry_handler(
-		const struct sfdo_desktop_file_group_entry *group_entry, void *data) {
-	(void)group_entry;
-	(void)data;
-	return true;
-}
-
-static bool noop_group_end_handler(const struct sfdo_desktop_file_group *group, void *data) {
-	(void)group;
-	(void)data;
-	return true;
-}
-
-static bool noop_group_start_handler(const struct sfdo_desktop_file_group *group, void *data,
-		sfdo_desktop_file_group_entry_handler_t *out_entry_handler,
-		sfdo_desktop_file_group_end_handler_t *out_end_handler) {
-	(void)group;
-	(void)data;
-	*out_entry_handler = noop_group_entry_handler;
-	*out_end_handler = noop_group_end_handler;
-	return true;
-}
+struct sfdo_desktop_file_group {
+	struct sfdo_desktop_file_loader *loader;
+};
 
 static inline bool is_ws(int32_t rune) {
 	return rune == ' ' || rune == '\t';
@@ -213,6 +196,19 @@ static inline void reset_buf(struct sfdo_desktop_file_loader *loader) {
 	loader->buf_len = 0;
 }
 
+static void clear_entries(struct sfdo_desktop_file_loader *loader) {
+	struct sfdo_hashmap *entries = &loader->entries;
+	for (size_t i = 0; i < entries->cap; i++) {
+		struct sfdo_desktop_file_entry *entry =
+				&((struct sfdo_desktop_file_entry *)entries->mem)[i];
+		if (entry->base.key != NULL) {
+			free(entry->key);
+			free(entry->value);
+		}
+	}
+	sfdo_hashmap_clear(entries);
+}
+
 static bool skip_ws(struct sfdo_desktop_file_loader *loader) {
 	while (true) {
 		if (!peek(loader)) {
@@ -290,62 +286,38 @@ static bool read_group(struct sfdo_desktop_file_loader *loader) {
 		return false;
 	}
 
-	struct sfdo_hashmap_entry *map_entry =
-			sfdo_hashmap_get(&loader->group_set, loader->buf, name_len);
+	struct sfdo_hashmap_entry *map_entry = sfdo_hashmap_get(&loader->group_set, loader->buf, true);
 	if (map_entry == NULL) {
 		set_error_at(loader, SFDO_DESKTOP_FILE_ERROR_OOM, line, column);
 		return false;
-	} else if (map_entry->key != NULL) {
+	} else if (map_entry->key == NULL) {
+		struct sfdo_desktop_file_seen_group *seen_group =
+				malloc(sizeof(*seen_group) + loader->buf_len);
+		if (seen_group == NULL) {
+			set_error_at(loader, SFDO_DESKTOP_FILE_ERROR_OOM, line, column);
+			return false;
+		}
+		memcpy(seen_group->name, loader->buf, loader->buf_len);
+		map_entry->key = seen_group->name;
+		seen_group->next = loader->groups;
+		loader->groups = seen_group;
+	} else if (!loader->allow_duplicate_groups) {
 		set_error_at(loader, SFDO_DESKTOP_FILE_ERROR_DUPLICATE_GROUP, line, column);
 		return false;
 	}
 
-	struct sfdo_desktop_file_seen_group *seen_group = malloc(sizeof(*seen_group) + loader->buf_len);
-	if (seen_group == NULL) {
-		set_error_at(loader, SFDO_DESKTOP_FILE_ERROR_OOM, line, column);
-		return false;
-	}
-	memcpy(seen_group->name, loader->buf, loader->buf_len);
-
-	seen_group->next = loader->curr_group;
-	loader->curr_group = seen_group;
-
+	loader->curr_group_name = map_entry->key;
 	loader->curr_group_name_len = name_len;
 	loader->curr_group_line = line;
-	loader->curr_group_column = line;
+	loader->curr_group_column = column;
 
-	map_entry->key = seen_group->name;
-
-	struct sfdo_desktop_file_group group = {
-		.name = map_entry->key,
-		.name_len = name_len,
-		.line = line,
-		.column = column,
-	};
-
-	loader->group_entry_func = NULL;
-	loader->group_end_func = NULL;
-
-	if (!loader->group_start_func(
-				&group, loader->user_data, &loader->group_entry_func, &loader->group_end_func)) {
-		set_error_at(loader, SFDO_DESKTOP_FILE_ERROR_USER, line, column);
-		return false;
-	}
-
-	if (loader->group_entry_func == NULL) {
-		loader->group_entry_func = noop_group_entry_handler;
-	}
-	if (loader->group_end_func == NULL) {
-		loader->group_end_func = noop_group_end_handler;
-	}
-
-	sfdo_hashmap_clear(&loader->entries);
+	clear_entries(loader);
 
 	return true;
 }
 
 static bool read_entry(struct sfdo_desktop_file_loader *loader) {
-	if (loader->curr_group == NULL) {
+	if (loader->curr_group_name == NULL) {
 		// An entry without a group
 		set_error(loader, SFDO_DESKTOP_FILE_ERROR_SYNTAX);
 		return false;
@@ -378,8 +350,7 @@ static bool read_entry(struct sfdo_desktop_file_loader *loader) {
 		return false;
 	}
 
-	struct sfdo_desktop_file_localized_entry *l_entry =
-			sfdo_hashmap_get(&loader->entries, loader->buf, key_len);
+	struct sfdo_desktop_file_entry *l_entry = sfdo_hashmap_get(&loader->entries, loader->buf, true);
 	if (l_entry == NULL) {
 		set_error_at(loader, SFDO_DESKTOP_FILE_ERROR_OOM, line, column);
 		return false;
@@ -535,54 +506,30 @@ static bool read_entry(struct sfdo_desktop_file_loader *loader) {
 	return true;
 }
 
-static void clear_localized_entry(struct sfdo_desktop_file_localized_entry *l_entry) {
-	free(l_entry->key);
-	free(l_entry->value);
-	*l_entry = (struct sfdo_desktop_file_localized_entry){0};
-}
-
 static bool end_group(struct sfdo_desktop_file_loader *loader) {
-	if (loader->curr_group == NULL) {
+	if (loader->curr_group_name == NULL) {
+		// TODO: is this required?
 		return true;
 	}
 
 	struct sfdo_hashmap *entries = &loader->entries;
 	for (size_t i = 0; i < entries->cap; i++) {
-		struct sfdo_desktop_file_localized_entry *l_entry =
-				&((struct sfdo_desktop_file_localized_entry *)entries->mem)[i];
+		struct sfdo_desktop_file_entry *l_entry =
+				&((struct sfdo_desktop_file_entry *)entries->mem)[i];
 		if (l_entry->base.key != NULL) {
 			if (!l_entry->has_default) {
 				set_error_at(loader, SFDO_DESKTOP_FILE_ERROR_NO_DEFAULT_VALUE, l_entry->line,
 						l_entry->column);
 				return false;
 			}
-			struct sfdo_desktop_file_group_entry group_entry = {
-				.key = l_entry->key,
-				.key_len = l_entry->key_len,
-				.value = l_entry->value,
-				.value_len = l_entry->value_len,
-				.line = l_entry->line,
-				.column = l_entry->column,
-			};
-			if (!loader->group_entry_func(&group_entry, loader->user_data)) {
-				set_error_at(loader, SFDO_DESKTOP_FILE_ERROR_USER, l_entry->line, l_entry->column);
-				return false;
-			}
-
-			clear_localized_entry(l_entry);
 		}
 	}
 
-	sfdo_hashmap_clear(entries);
-
 	struct sfdo_desktop_file_group group = {
-		.name = loader->curr_group->name,
-		.name_len = loader->curr_group_name_len,
-		.line = loader->curr_group_line,
-		.column = loader->curr_group_column,
+		.loader = loader,
 	};
 
-	if (!loader->group_end_func(&group, loader->user_data)) {
+	if (!loader->group_handler(&group, loader->user_data)) {
 		set_error(loader, SFDO_DESKTOP_FILE_ERROR_USER);
 		return false;
 	}
@@ -730,30 +677,26 @@ static bool prepare_locales(struct sfdo_desktop_file_loader *loader, const char 
 }
 
 SFDO_API bool sfdo_desktop_file_load(FILE *fp, struct sfdo_desktop_file_error *error,
-		const char *locale, sfdo_desktop_file_group_start_handler_t group_start_handler,
-		void *data) {
+		const char *locale, sfdo_desktop_file_group_handler_t group_handler, void *data,
+		int options) {
 	struct sfdo_desktop_file_error placeholder;
 	if (error == NULL) {
 		error = &placeholder;
 	}
-	if (group_start_handler == NULL) {
-		group_start_handler = noop_group_start_handler;
-	}
 
 	struct sfdo_desktop_file_loader loader = {
-		.group_start_func = group_start_handler,
-		.group_entry_func = noop_group_entry_handler,
-		.group_end_func = noop_group_end_handler,
+		.group_handler = group_handler,
 		.user_data = data,
 		.rune = RUNE_NONE,
 		.line = 1,
 		.column = 1,
 		.fp = fp,
 		.error = error,
+		.allow_duplicate_groups = (options & SFDO_DESKTOP_FILE_LOAD_ALLOW_DUPLICATE_GROUPS) != 0,
 	};
 
 	sfdo_hashmap_init(&loader.group_set, sizeof(struct sfdo_hashmap_entry));
-	sfdo_hashmap_init(&loader.entries, sizeof(struct sfdo_desktop_file_localized_entry));
+	sfdo_hashmap_init(&loader.entries, sizeof(struct sfdo_desktop_file_entry));
 
 	bool ok = false;
 
@@ -769,7 +712,7 @@ SFDO_API bool sfdo_desktop_file_load(FILE *fp, struct sfdo_desktop_file_error *e
 
 	free(loader.buf);
 
-	struct sfdo_desktop_file_seen_group *seen_group = loader.curr_group;
+	struct sfdo_desktop_file_seen_group *seen_group = loader.groups;
 	while (seen_group != NULL) {
 		struct sfdo_desktop_file_seen_group *next = seen_group->next;
 		free(seen_group);
@@ -778,16 +721,8 @@ SFDO_API bool sfdo_desktop_file_load(FILE *fp, struct sfdo_desktop_file_error *e
 
 	sfdo_hashmap_finish(&loader.group_set);
 
-	struct sfdo_hashmap *entries = &loader.entries;
-	for (size_t i = 0; i < entries->cap; i++) {
-		struct sfdo_desktop_file_localized_entry *l_entry =
-				&((struct sfdo_desktop_file_localized_entry *)entries->mem)[i];
-		if (l_entry->base.key != NULL) {
-			clear_localized_entry(l_entry);
-		}
-	}
-
-	sfdo_hashmap_finish(entries);
+	clear_entries(&loader);
+	sfdo_hashmap_finish(&loader.entries);
 
 	return ok;
 }
@@ -815,4 +750,56 @@ SFDO_API const char *sfdo_desktop_file_error_code_get_description(
 		return "User error";
 	}
 	abort(); // Unreachable
+}
+
+SFDO_API const char *sfdo_desktop_file_group_get_name(
+		struct sfdo_desktop_file_group *group, size_t *len) {
+	struct sfdo_desktop_file_loader *loader = group->loader;
+	if (len != NULL) {
+		*len = loader->curr_group_name_len;
+	}
+	return loader->curr_group_name;
+}
+
+SFDO_API void sfdo_desktop_file_group_get_location(
+		struct sfdo_desktop_file_group *group, int *line, int *column) {
+	struct sfdo_desktop_file_loader *loader = group->loader;
+	if (line != NULL) {
+		*line = loader->curr_group_line;
+	}
+	if (column != NULL) {
+		*column = loader->curr_group_column;
+	}
+}
+
+SFDO_API struct sfdo_desktop_file_entry *sfdo_desktop_file_group_get_entry(
+		struct sfdo_desktop_file_group *group, const char *key) {
+	struct sfdo_desktop_file_loader *loader = group->loader;
+	return sfdo_hashmap_get(&loader->entries, key, false);
+}
+
+SFDO_API const char *sfdo_desktop_file_entry_get_key(
+		struct sfdo_desktop_file_entry *entry, size_t *len) {
+	if (len != NULL) {
+		*len = entry->key_len;
+	}
+	return entry->key;
+}
+
+SFDO_API const char *sfdo_desktop_file_entry_get_value(
+		struct sfdo_desktop_file_entry *entry, size_t *len) {
+	if (len != NULL) {
+		*len = entry->value_len;
+	}
+	return entry->value;
+}
+
+SFDO_API void sfdo_desktop_file_entry_get_location(
+		struct sfdo_desktop_file_entry *entry, int *line, int *column) {
+	if (line != NULL) {
+		*line = entry->line;
+	}
+	if (column != NULL) {
+		*column = entry->column;
+	}
 }

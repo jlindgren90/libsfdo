@@ -19,23 +19,27 @@ static void log_handler(enum sfdo_log_level level, const char *fmt, va_list args
 }
 
 static void die_usage(const char *prog) {
-	printf("Usage: %s [-DS] <theme> <size> <scale> <names...>\n", prog);
+	printf("Usage: %s [-DRS] <theme> <size> <scale> <names...>\n", prog);
 	exit(1);
 }
 
 int main(int argc, char **argv) {
-	int options = SFDO_ICON_THEME_LOOKUP_OPTIONS_DEFAULT;
+	int load_options = SFDO_ICON_THEME_LOAD_OPTIONS_DEFAULT;
+	int lookup_options = SFDO_ICON_THEME_LOOKUP_OPTIONS_DEFAULT;
 	bool debug = false;
 
 	char *prog = argv[0];
 	int opt;
-	while ((opt = getopt(argc, argv, "DS")) != -1) {
+	while ((opt = getopt(argc, argv, "DRS")) != -1) {
 		switch (opt) {
-		case 'S':
-			options |= SFDO_ICON_THEME_LOOKUP_OPTION_NO_SVG;
-			break;
 		case 'D':
 			debug = true;
+			break;
+		case 'R':
+			load_options |= SFDO_ICON_THEME_LOAD_OPTION_RELAXED;
+			break;
+		case 'S':
+			lookup_options |= SFDO_ICON_THEME_LOOKUP_OPTION_NO_SVG;
 			break;
 		default:
 			die_usage(prog);
@@ -75,15 +79,14 @@ int main(int argc, char **argv) {
 	sfdo_icon_ctx_set_log_handler(
 			ctx, debug ? SFDO_LOG_LEVEL_DEBUG : SFDO_LOG_LEVEL_ERROR, log_handler, NULL);
 
-	struct sfdo_icon_theme *theme =
-			sfdo_icon_theme_load(ctx, theme_name, SFDO_ICON_THEME_LOAD_OPTIONS_DEFAULT);
+	struct sfdo_icon_theme *theme = sfdo_icon_theme_load(ctx, theme_name, load_options);
 	if (theme == NULL) {
 		fprintf(stderr, "Failed to load the icon theme\n");
 		goto err_load;
 	}
 
 	struct sfdo_icon_file *file =
-			sfdo_icon_theme_lookup_best(theme, names, n_names, size, scale, options);
+			sfdo_icon_theme_lookup_best(theme, names, n_names, size, scale, lookup_options);
 	if (file == NULL) {
 		fprintf(stderr, "Failed to look up an icon\n");
 		goto err_lookup;

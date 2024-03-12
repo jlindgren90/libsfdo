@@ -23,33 +23,37 @@ struct sfdo_desktop_file_error {
 	int line, column;
 };
 
-struct sfdo_desktop_file_group {
-	const char *name;
-	size_t name_len;
-	int line, column;
+struct sfdo_desktop_file_group;
+
+struct sfdo_desktop_file_entry;
+
+enum sfdo_desktop_file_load_options {
+	SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT = 0,
+
+	SFDO_DESKTOP_FILE_LOAD_ALLOW_DUPLICATE_GROUPS = 1 << 0,
 };
 
-struct sfdo_desktop_file_group_entry {
-	const char *key;
-	size_t key_len;
-	const char *value;
-	size_t value_len;
-	int line, column;
-};
-
-typedef bool (*sfdo_desktop_file_group_entry_handler_t)(
-		const struct sfdo_desktop_file_group_entry *entry, void *data);
-
-typedef bool (*sfdo_desktop_file_group_end_handler_t)(
-		const struct sfdo_desktop_file_group *group, void *data);
-
-typedef bool (*sfdo_desktop_file_group_start_handler_t)(const struct sfdo_desktop_file_group *group,
-		void *data, sfdo_desktop_file_group_entry_handler_t *out_entry_handler,
-		sfdo_desktop_file_group_end_handler_t *out_end_handler);
+typedef bool (*sfdo_desktop_file_group_handler_t)(
+		struct sfdo_desktop_file_group *group, void *data);
 
 bool sfdo_desktop_file_load(FILE *fp, struct sfdo_desktop_file_error *error, const char *locale,
-		sfdo_desktop_file_group_start_handler_t group_start_handler, void *data);
+		sfdo_desktop_file_group_handler_t group_handler, void *data, int options);
 
 const char *sfdo_desktop_file_error_code_get_description(enum sfdo_desktop_file_error_code code);
+
+const char *sfdo_desktop_file_group_get_name(struct sfdo_desktop_file_group *group, size_t *len);
+
+void sfdo_desktop_file_group_get_location(
+		struct sfdo_desktop_file_group *group, int *line, int *column);
+
+struct sfdo_desktop_file_entry *sfdo_desktop_file_group_get_entry(
+		struct sfdo_desktop_file_group *group, const char *key);
+
+const char *sfdo_desktop_file_entry_get_key(struct sfdo_desktop_file_entry *entry, size_t *len);
+
+const char *sfdo_desktop_file_entry_get_value(struct sfdo_desktop_file_entry *entry, size_t *len);
+
+void sfdo_desktop_file_entry_get_location(
+		struct sfdo_desktop_file_entry *entry, int *line, int *column);
 
 #endif

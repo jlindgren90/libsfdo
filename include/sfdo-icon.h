@@ -20,6 +20,8 @@ struct sfdo_icon_file;
 
 enum sfdo_icon_theme_load_options {
 	SFDO_ICON_THEME_LOAD_OPTIONS_DEFAULT = 0,
+
+	SFDO_ICON_THEME_LOAD_OPTION_RELAXED = 1 << 0,
 };
 
 enum sfdo_icon_theme_lookup_options {

@@ -18,6 +18,11 @@ struct sfdo_icon_scheduled_node {
 	struct sfdo_icon_scheduled_node *next;
 };
 
+struct sfdo_icon_subdir_group {
+	struct sfdo_hashmap_entry base;
+	bool seen;
+};
+
 struct sfdo_icon_loader {
 	// Per-theme
 
@@ -26,21 +31,16 @@ struct sfdo_icon_loader {
 	struct sfdo_icon_scheduled_node *scheduled_nodes; // Owned
 	struct sfdo_icon_scheduled_node *curr_node;
 
+	bool relaxed;
+
 	// Per-node
 
-	char *directories; // Borrowed from theme strings
-	char *scaled_directories; // Borrowed from theme strings
 	bool seen_icon_theme_group;
 
 	struct sfdo_icon_subdir *subdirs; // Owned, moved into a node after loading
 	size_t n_subdirs;
 	size_t subdir_i;
-	struct sfdo_hashmap subdir_set; // sfdo_hashmap_entry
-
-	// Per-subdir
-
-	int subdir_min_size, subdir_max_size; // For scalable, 0 if not set
-	int subdir_threshold; // For threshold
+	struct sfdo_hashmap subdir_group_set; // sfdo_icon_subdir_group
 };
 
 // Returns 0 on error
@@ -98,6 +98,31 @@ static bool schedule_node(struct sfdo_icon_loader *loader, const char *name, siz
 	return true;
 }
 
+// TODO: extract
+static char *iterate_list(char *list, char sep, char **iter, size_t *len) {
+	if (*iter == NULL) {
+		*iter = list;
+	}
+	char *item = *iter;
+	if (*item == '\0') {
+		return NULL;
+	}
+	size_t i = 0;
+	while (true) {
+		if (item[i] == sep) {
+			*len = i;
+			item[i++] = '\0';
+			break;
+		} else if (item[i] == '\0') {
+			*len = i;
+			break;
+		}
+		++i;
+	}
+	*iter += i;
+	return item;
+}
+
 static bool schedule_node_list(struct sfdo_icon_loader *loader, const char *node_list) {
 	struct sfdo_icon_scheduled_node *last = loader->curr_node;
 
@@ -128,237 +153,227 @@ static bool schedule_node_list(struct sfdo_icon_loader *loader, const char *node
 	return true;
 }
 
-static bool df_icon_theme_entry_handler(
-		const struct sfdo_desktop_file_group_entry *entry, void *data) {
+static bool add_directory_list(
+		struct sfdo_icon_loader *loader, char *list, int group_line, int group_column) {
+	struct sfdo_logger *logger = &loader->theme->ctx->logger;
+
+	char *dir;
+	size_t dir_len;
+	char *iter = NULL;
+	while ((dir = iterate_list(list, ',', &iter, &dir_len)) != NULL) {
+		if (dir_len == 0) {
+			continue;
+		}
+		struct sfdo_hashmap_entry *entry = sfdo_hashmap_get(&loader->subdir_group_set, dir, true);
+		if (entry == NULL) {
+			logger_write_oom(logger);
+			return false;
+		} else if (entry->key != NULL) {
+			logger_write(logger, loader->relaxed ? SFDO_LOG_LEVEL_INFO : SFDO_LOG_LEVEL_ERROR,
+					"%d:%d: duplicate directory \"%s\"", group_line, group_column, dir);
+			if (loader->relaxed) {
+				continue;
+			} else {
+				return false;
+			}
+		}
+		entry->key = dir;
+		++loader->n_subdirs;
+	}
+
+	return true;
+}
+
+static bool df_group_handler(struct sfdo_desktop_file_group *group, void *data) {
 	struct sfdo_icon_loader *loader = data;
 	struct sfdo_icon_theme *theme = loader->theme;
 	struct sfdo_logger *logger = &theme->ctx->logger;
 
-	if (strcmp(entry->key, "Inherits") == 0) {
-		if (!schedule_node_list(loader, entry->value)) {
-			return false;
+	size_t group_name_len;
+	const char *group_name = sfdo_desktop_file_group_get_name(group, &group_name_len);
+
+	struct sfdo_desktop_file_entry *entry;
+	const char *value;
+	size_t value_len;
+
+	int group_line, group_column;
+	sfdo_desktop_file_group_get_location(group, &group_line, &group_column);
+
+	int entry_line, entry_column;
+
+	if (strcmp(group_name, "Icon Theme") == 0) {
+		loader->seen_icon_theme_group = true;
+
+		if ((entry = sfdo_desktop_file_group_get_entry(group, "Inherits")) != NULL) {
+			if (!schedule_node_list(loader, sfdo_desktop_file_entry_get_value(entry, NULL))) {
+				return false;
+			}
 		}
-	} else if (strcmp(entry->key, "Directories") == 0) {
-		loader->directories = sfdo_strpool_add(&theme->strings, entry->value, entry->value_len);
-		if (loader->directories == NULL) {
-			logger_write_oom(logger);
-			return false;
-		}
-	} else if (strcmp(entry->key, "ScaledDirectories") == 0) {
-		loader->scaled_directories =
-				sfdo_strpool_add(&theme->strings, entry->value, entry->value_len);
-		if (loader->scaled_directories == NULL) {
-			logger_write_oom(logger);
-			return false;
-		}
-	}
 
-	return true;
-}
-
-static bool df_icon_theme_end_handler(const struct sfdo_desktop_file_group *group, void *data) {
-	struct sfdo_icon_loader *loader = data;
-	struct sfdo_logger *logger = &loader->theme->ctx->logger;
-
-	char *directory_list = loader->directories;
-	char *scaled_directory_list = loader->scaled_directories;
-
-	if (directory_list == NULL) {
-		logger_write(logger, SFDO_LOG_LEVEL_ERROR, "%d:%d: \"Directories\" is unset", group->line,
-				group->column);
-		return false;
-	}
-
-	char *next_list = scaled_directory_list;
-	size_t n_subdirs = 0;
-	for (char *p = directory_list; p != NULL;) {
-		size_t dir_len = strcspn(p, ",");
-		char *key = p;
-		if (p[dir_len] == '\0') {
-			p = next_list;
-			next_list = NULL;
-		} else {
-			p[dir_len] = '\0';
-			p += dir_len + 1;
-		}
-		if (dir_len > 0) {
-			struct sfdo_hashmap_entry *entry = sfdo_hashmap_get(&loader->subdir_set, key, true);
-			if (entry == NULL) {
+		if ((entry = sfdo_desktop_file_group_get_entry(group, "Directories")) != NULL) {
+			value = sfdo_desktop_file_entry_get_value(entry, &value_len);
+			char *list = sfdo_strpool_add(&theme->strings, value, value_len);
+			if (list == NULL) {
 				logger_write_oom(logger);
 				return false;
-			} else if (entry->key != NULL) {
-				logger_write(logger, SFDO_LOG_LEVEL_ERROR, "%d:%d: duplicate directory \"%s\"",
-						group->line, group->column, key);
+			}
+			if (!add_directory_list(loader, list, group_line, group_column)) {
 				return false;
 			}
-			entry->key = key;
-			++n_subdirs;
-		}
-	}
-
-	if (n_subdirs > 0) {
-		loader->subdirs = calloc(n_subdirs, sizeof(*loader->subdirs));
-		if (loader->subdirs == NULL) {
-			logger_write_oom(logger);
+		} else {
+			logger_write(logger, SFDO_LOG_LEVEL_ERROR, "%d:%d: Directories is unset", group_line,
+					group_column);
 			return false;
 		}
-	}
-	loader->n_subdirs = n_subdirs;
 
-	return true;
-}
-
-static bool df_subdir_entry_handler(const struct sfdo_desktop_file_group_entry *entry, void *data) {
-	struct sfdo_icon_loader *loader = data;
-
-	struct sfdo_logger *logger = &loader->theme->ctx->logger;
-	struct sfdo_icon_subdir *subdir = &loader->subdirs[loader->subdir_i];
-
-	struct {
-		const char *name;
-		int *dest;
-	} integers[] = {
-		{"Size", &subdir->size},
-		{"Scale", &subdir->scale},
-		{"MinSize", &loader->subdir_min_size},
-		{"MaxSize", &loader->subdir_max_size},
-		{"Threshold", &loader->subdir_threshold},
-	};
-	for (size_t i = 0; i < sizeof(integers) / sizeof(*integers); i++) {
-		int *dest = integers[i].dest;
-		if (strcmp(entry->key, integers[i].name) == 0) {
-			*dest = parse_positive_integer(entry->value);
-			if (*dest == 0) {
-				goto err_value;
+		if ((entry = sfdo_desktop_file_group_get_entry(group, "ScaledDirectories")) != NULL) {
+			value = sfdo_desktop_file_entry_get_value(entry, &value_len);
+			char *list = sfdo_strpool_add(&theme->strings, value, value_len);
+			if (list == NULL) {
+				logger_write_oom(logger);
+				return false;
 			}
-			return true;
+			if (!add_directory_list(loader, list, group_line, group_column)) {
+				return false;
+			}
 		}
-	}
-	if (strcmp(entry->key, "Type") == 0) {
-		if (strcmp(entry->value, "Fixed") == 0) {
-			subdir->type = SFDO_ICON_SUBDIR_FIXED;
-		} else if (strcmp(entry->value, "Scalable") == 0) {
-			subdir->type = SFDO_ICON_SUBDIR_SCALABLE;
-		} else if (strcmp(entry->value, "Threshold") == 0) {
-			subdir->type = SFDO_ICON_SUBDIR_THRESHOLD;
-		} else {
-			goto err_value;
+
+		if (loader->n_subdirs > 0) {
+			loader->subdirs = calloc(loader->n_subdirs, sizeof(*loader->subdirs));
+			if (loader->subdirs == NULL) {
+				logger_write_oom(logger);
+				return false;
+			}
 		}
+
+		return true;
 	}
 
-	return true;
-
-err_value:
-	logger_write(logger, SFDO_LOG_LEVEL_ERROR, "%d:%d: invalid %s value \"%s\"", entry->line,
-			entry->column, entry->key, entry->value);
-	return false;
-}
-
-static bool df_subdir_end_handler(const struct sfdo_desktop_file_group *group, void *data) {
-	struct sfdo_icon_loader *loader = data;
-
-	struct sfdo_logger *logger = &loader->theme->ctx->logger;
-
-	struct sfdo_icon_subdir *subdir = &loader->subdirs[loader->subdir_i];
-	if (subdir->size == 0) {
-		logger_write(logger, SFDO_LOG_LEVEL_ERROR, "%d:%d: directory doesn't have a size",
-				group->line, group->column);
+	if (!loader->seen_icon_theme_group) {
+		logger_write(logger, SFDO_LOG_LEVEL_ERROR,
+				"%d:%d: expected \"Icon Theme\" group, got \"%s\"", group_line, group_column,
+				group_name);
 		return false;
 	}
-	if (subdir->scale == 0) {
+
+	if (strncmp(group_name, "X-", 2) == 0) {
+		// Ignore all entries
+		return true;
+	}
+
+	struct sfdo_icon_subdir_group *subdir_group =
+			sfdo_hashmap_get(&loader->subdir_group_set, group_name, false);
+	if (subdir_group == NULL) {
+		logger_write(logger, loader->relaxed ? SFDO_LOG_LEVEL_INFO : SFDO_LOG_LEVEL_ERROR,
+				"%d:%d: unexpected directory group \"%s\"", group_line, group_column, group_name);
+		return loader->relaxed;
+	} else if (subdir_group->seen) {
+		logger_write(logger, loader->relaxed ? SFDO_LOG_LEVEL_INFO : SFDO_LOG_LEVEL_ERROR,
+				"%d:%d: duplicate directory group \"%s\"", group_line, group_column, group_name);
+		return loader->relaxed;
+	}
+
+	subdir_group->seen = true;
+
+	assert(loader->subdir_i < loader->n_subdirs);
+	struct sfdo_icon_subdir *subdir = &loader->subdirs[loader->subdir_i++];
+
+	subdir->path.data = subdir_group->base.key;
+	subdir->path.len = group_name_len;
+
+	if ((entry = sfdo_desktop_file_group_get_entry(group, "Size")) != NULL) {
+		value = sfdo_desktop_file_entry_get_value(entry, NULL);
+		if ((subdir->size = parse_positive_integer(value)) == 0) {
+			goto err_value;
+		}
+	} else {
+		logger_write(
+				logger, SFDO_LOG_LEVEL_ERROR, "%d:%d: Size is unset", group_line, group_column);
+		return false;
+	}
+
+	subdir->type = SFDO_ICON_SUBDIR_THRESHOLD;
+	if ((entry = sfdo_desktop_file_group_get_entry(group, "Type")) != NULL) {
+		value = sfdo_desktop_file_entry_get_value(entry, &value_len);
+		if (strcmp(value, "Fixed") == 0) {
+			subdir->type = SFDO_ICON_SUBDIR_FIXED;
+		} else if (strcmp(value, "Scalable") == 0) {
+			subdir->type = SFDO_ICON_SUBDIR_SCALABLE;
+		} else if (strcmp(value, "Threshold") == 0) {
+			subdir->type = SFDO_ICON_SUBDIR_THRESHOLD;
+		} else {
+			sfdo_desktop_file_entry_get_location(entry, &entry_line, &entry_column);
+			logger_write(logger, loader->relaxed ? SFDO_LOG_LEVEL_INFO : SFDO_LOG_LEVEL_ERROR,
+					"%d:%d: invalid Type \"%s\"", entry_line, entry_column, value);
+			if (!loader->relaxed) {
+				return false;
+			}
+		}
+	}
+
+	if ((entry = sfdo_desktop_file_group_get_entry(group, "Scale")) != NULL) {
+		value = sfdo_desktop_file_entry_get_value(entry, NULL);
+		if ((subdir->scale = parse_positive_integer(value)) == 0) {
+			goto err_value;
+		}
+	} else {
 		subdir->scale = 1;
 	}
+
+	subdir->min_pixel_size = subdir->size;
+	subdir->max_pixel_size = subdir->size;
+	int threshold = 2;
 
 	switch (subdir->type) {
 	case SFDO_ICON_SUBDIR_FIXED:
 		subdir->min_pixel_size = subdir->max_pixel_size = subdir->size;
 		break;
 	case SFDO_ICON_SUBDIR_SCALABLE:
-		if (loader->subdir_min_size == 0) {
-			loader->subdir_min_size = subdir->size;
+		if ((entry = sfdo_desktop_file_group_get_entry(group, "MinSize")) != NULL) {
+			value = sfdo_desktop_file_entry_get_value(entry, NULL);
+			if ((subdir->min_pixel_size = parse_positive_integer(value)) == 0) {
+				goto err_value;
+			}
 		}
-		if (loader->subdir_max_size == 0) {
-			loader->subdir_max_size = subdir->size;
+		if ((entry = sfdo_desktop_file_group_get_entry(group, "MaxSize")) != NULL) {
+			value = sfdo_desktop_file_entry_get_value(entry, NULL);
+			if ((subdir->max_pixel_size = parse_positive_integer(value)) == 0) {
+				goto err_value;
+			}
 		}
-		if (loader->subdir_min_size > loader->subdir_max_size) {
-			logger_write(logger, SFDO_LOG_LEVEL_ERROR, "%d:%d: invalid size range: min %d, max %d",
-					group->line, group->column, loader->subdir_min_size, loader->subdir_max_size);
+		if (subdir->min_pixel_size > subdir->max_pixel_size) {
+			logger_write(logger, SFDO_LOG_LEVEL_ERROR,
+					"%d:%d: invalid size range: minimum %d, maximum %d", group_line, group_column,
+					subdir->min_pixel_size, subdir->max_pixel_size);
+			return false;
 		}
-		subdir->min_pixel_size = loader->subdir_min_size;
-		subdir->max_pixel_size = loader->subdir_max_size;
 		break;
-	case SFDO_ICON_SUBDIR_UNKNOWN:
-		subdir->type = SFDO_ICON_SUBDIR_THRESHOLD;
-		// Fallthrough
 	case SFDO_ICON_SUBDIR_THRESHOLD:
-		if (loader->subdir_threshold == 0) {
-			loader->subdir_threshold = 2;
+		if ((entry = sfdo_desktop_file_group_get_entry(group, "Threshold")) != NULL) {
+			value = sfdo_desktop_file_entry_get_value(entry, NULL);
+			if ((threshold = parse_positive_integer(value)) == 0) {
+				goto err_value;
+			}
 		}
 		// SPEC: the specification incorrectly suggests using MinSize/MaxSize for distance
 		// calculation even for Threshold subdirectories
-		subdir->min_pixel_size = subdir->size - loader->subdir_threshold;
-		subdir->max_pixel_size = subdir->size + loader->subdir_threshold;
+		subdir->min_pixel_size = subdir->size - threshold;
+		subdir->max_pixel_size = subdir->size + threshold;
 		break;
 	}
+
 	subdir->min_pixel_size *= subdir->scale;
 	subdir->max_pixel_size *= subdir->scale;
 
-	assert(loader->subdir_i < loader->n_subdirs);
-	++loader->subdir_i;
-
 	return true;
-}
 
-static bool df_group_start_handler(const struct sfdo_desktop_file_group *group, void *data,
-		sfdo_desktop_file_group_entry_handler_t *out_entry_handler,
-		sfdo_desktop_file_group_end_handler_t *out_end_handler) {
-	struct sfdo_icon_loader *loader = data;
-	struct sfdo_icon_theme *theme = loader->theme;
-	struct sfdo_logger *logger = &theme->ctx->logger;
-
-	if (strcmp(group->name, "Icon Theme") == 0) {
-		loader->seen_icon_theme_group = true;
-		*out_entry_handler = df_icon_theme_entry_handler;
-		*out_end_handler = df_icon_theme_end_handler;
-		return true;
-	}
-
-	if (!loader->seen_icon_theme_group) {
-		logger_write(logger, SFDO_LOG_LEVEL_ERROR,
-				"%d:%d: expected \"Icon Theme\" group, got \"%s\"", group->line, group->column,
-				group->name);
-		return false;
-	}
-
-	if (strncmp(group->name, "X-", 2) == 0) {
-		// Skip all entries
-		return true;
-	}
-
-	struct sfdo_hashmap_entry *map_entry =
-			sfdo_hashmap_get(&loader->subdir_set, group->name, false);
-	if (map_entry == NULL) {
-		logger_write(logger, SFDO_LOG_LEVEL_ERROR, "%d:%d: unexpected \"%s\" directory group",
-				group->line, group->column, group->name);
-		return false;
-	}
-
-	loader->subdir_min_size = 0;
-	loader->subdir_max_size = 0;
-	loader->subdir_threshold = 0;
-
-	struct sfdo_icon_subdir *subdir = &loader->subdirs[loader->subdir_i];
-
-	subdir->path.data = map_entry->key;
-	subdir->path.len = group->name_len;
-
-	subdir->type = SFDO_ICON_SUBDIR_UNKNOWN;
-	subdir->size = 0;
-	subdir->scale = 0;
-
-	*out_entry_handler = df_subdir_entry_handler;
-	*out_end_handler = df_subdir_end_handler;
-	return true;
+err_value:
+	assert(entry != NULL);
+	const char *key = sfdo_desktop_file_entry_get_key(entry, NULL);
+	sfdo_desktop_file_entry_get_location(entry, &entry_line, &entry_column);
+	logger_write(logger, SFDO_LOG_LEVEL_ERROR, "%d:%d: invalid %s value \"%s\"", entry_line,
+			entry_column, key, value);
+	return false;
 }
 
 static struct sfdo_icon_theme_node *node_create(const char *name, size_t name_len,
@@ -422,20 +437,22 @@ static bool load_node(struct sfdo_icon_loader *loader, struct sfdo_icon_schedule
 		return true;
 	}
 
-	loader->curr_node = s_node;
-
-	loader->directories = NULL;
-	loader->scaled_directories = NULL;
 	loader->seen_icon_theme_group = false;
 
 	loader->subdirs = NULL;
 	loader->n_subdirs = 0;
 	loader->subdir_i = 0;
 
-	sfdo_hashmap_clear(&loader->subdir_set);
+	sfdo_hashmap_clear(&loader->subdir_group_set);
+
+	int df_options = SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT;
+	if (loader->relaxed) {
+		df_options |= SFDO_DESKTOP_FILE_LOAD_ALLOW_DUPLICATE_GROUPS;
+	}
 
 	struct sfdo_desktop_file_error desktop_file_error;
-	if (!sfdo_desktop_file_load(fp, &desktop_file_error, NULL, df_group_start_handler, loader)) {
+	if (!sfdo_desktop_file_load(
+				fp, &desktop_file_error, NULL, df_group_handler, loader, df_options)) {
 		if (desktop_file_error.code != SFDO_DESKTOP_FILE_ERROR_USER) {
 			logger_write(logger, SFDO_LOG_LEVEL_ERROR, "%d:%d: %s", desktop_file_error.line,
 					desktop_file_error.column,
@@ -443,6 +460,12 @@ static bool load_node(struct sfdo_icon_loader *loader, struct sfdo_icon_schedule
 		}
 		logger_write(logger, SFDO_LOG_LEVEL_ERROR, "Failed to read the icon theme file for %s",
 				s_node->name);
+		goto err;
+	}
+
+	if (loader->subdir_i != loader->n_subdirs) {
+		logger_write(
+				logger, SFDO_LOG_LEVEL_ERROR, "Not enough directory sections in %s", s_node->name);
 		goto err;
 	}
 
@@ -461,12 +484,13 @@ err:
 	return false;
 }
 
-static bool load_theme(struct sfdo_icon_theme *theme, const char *name) {
+static bool load_theme(struct sfdo_icon_theme *theme, const char *name, int options) {
 	struct sfdo_icon_loader loader = {
 		.theme = theme,
+		.relaxed = (options & SFDO_ICON_THEME_LOAD_OPTION_RELAXED) != 0,
 	};
 	sfdo_hashmap_init(&loader.seen_nodes, sizeof(struct sfdo_hashmap_entry));
-	sfdo_hashmap_init(&loader.subdir_set, sizeof(struct sfdo_hashmap_entry));
+	sfdo_hashmap_init(&loader.subdir_group_set, sizeof(struct sfdo_icon_subdir_group));
 
 	bool ok = false;
 
@@ -485,6 +509,8 @@ static bool load_theme(struct sfdo_icon_theme *theme, const char *name) {
 
 	for (struct sfdo_icon_scheduled_node *s_node = loader.scheduled_nodes; s_node != NULL;
 			s_node = s_node->next) {
+		loader.curr_node = s_node;
+
 		struct sfdo_icon_theme_node *node;
 		if (!load_node(&loader, s_node, &node)) {
 			goto end;
@@ -499,7 +525,7 @@ static bool load_theme(struct sfdo_icon_theme *theme, const char *name) {
 
 end:
 	sfdo_hashmap_finish(&loader.seen_nodes);
-	sfdo_hashmap_finish(&loader.subdir_set);
+	sfdo_hashmap_finish(&loader.subdir_group_set);
 
 	struct sfdo_icon_scheduled_node *s_node = loader.scheduled_nodes;
 	while (s_node != NULL) {
@@ -573,7 +599,7 @@ SFDO_API struct sfdo_icon_theme *sfdo_icon_theme_load_from(struct sfdo_icon_ctx 
 		return NULL;
 	}
 
-	if (!load_theme(theme, name)) {
+	if (!load_theme(theme, name, options)) {
 		goto err;
 	}
 	if (!sfdo_icon_theme_rescan(theme)) {

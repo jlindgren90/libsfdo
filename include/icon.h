@@ -48,7 +48,6 @@ struct sfdo_icon_state {
 };
 
 enum sfdo_icon_subdir_type {
-	SFDO_ICON_SUBDIR_UNKNOWN,
 	SFDO_ICON_SUBDIR_FIXED,
 	SFDO_ICON_SUBDIR_SCALABLE,
 	SFDO_ICON_SUBDIR_THRESHOLD,
