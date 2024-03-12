@@ -7,15 +7,6 @@
 #include "api.h"
 #include "icon.h"
 
-// Note: at the moment of writing this, the icon theme specification
-// (https://specifications.freedesktop.org/icon-theme-spec/icon-theme-spec-latest.html)
-// has a number of problems, for example:
-//
-// - https://gitlab.freedesktop.org/xdg/default-icon-theme/-/issues/19
-// - https://gitlab.freedesktop.org/xdg/default-icon-theme/-/issues/20
-//
-// As such, some parts of this code (marked with SPEC) don't conform to the specification.
-
 #define ICONS_HOME_DIR "/.icons/"
 #define ICONS_SUFFIX "icons/"
 #define PIXMAPS_BASE_DIR "/usr/share/pixmaps/"
