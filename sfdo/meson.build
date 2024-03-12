@@ -14,6 +14,10 @@ private_strbuild_src = files(
   'strbuild.c',
 )
 
+private_striter_src = files(
+  'striter.c',
+)
+
 private_strpool_src = files(
   'strpool.c',
 )

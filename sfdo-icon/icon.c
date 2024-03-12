@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <sfdo-basedir.h>
 #include <sfdo-icon.h>
 #include <stdlib.h>
@@ -43,44 +44,44 @@ SFDO_API struct sfdo_icon_ctx *sfdo_icon_ctx_create(struct sfdo_basedir_ctx *bas
 			mem_size += data_dirs[i].len + sizeof(ICONS_SUFFIX);
 		}
 
-		char *mem = malloc(mem_size);
-		if (mem == NULL) {
-			goto err;
-		}
-
 		struct sfdo_string *dirs = calloc(n_dirs, sizeof(*dirs));
 		if (dirs == NULL) {
-			free(mem);
 			goto err;
 		}
 
-		char *mem_iter = mem;
+		struct sfdo_strbuild mem_buf;
+		if (!sfdo_strbuild_setup_capped(&mem_buf, mem_size)) {
+			free(dirs);
+			goto err;
+		}
+
 		struct sfdo_string *dir_iter = dirs;
 
-		dir_iter->data = mem_iter;
-		dir_iter->len = home_len + sizeof(ICONS_HOME_DIR) - 1;
-		memcpy(mem_iter, home, home_len);
-		mem_iter += home_len;
-		memcpy(mem_iter, ICONS_HOME_DIR, sizeof(ICONS_HOME_DIR));
-		mem_iter += sizeof(ICONS_HOME_DIR);
+		dir_iter->data = mem_buf.data + mem_buf.len;
+		// ICONS_HOME_DIR includes a null terminator
+		sfdo_strbuild_add_raw(
+				&mem_buf, home, home_len, ICONS_HOME_DIR, sizeof(ICONS_HOME_DIR), NULL);
+		dir_iter->len = mem_buf.len - 1;
 		++dir_iter;
 
 		for (size_t i = 0; i < n_data_dirs; i++) {
-			const struct sfdo_string *dir = &data_dirs[i];
-			dir_iter->data = mem_iter;
-			dir_iter->len = dir->len + sizeof(ICONS_SUFFIX) - 1;
-			memcpy(mem_iter, dir->data, dir->len);
-			mem_iter += dir->len;
-			memcpy(mem_iter, ICONS_SUFFIX, sizeof(ICONS_SUFFIX));
-			mem_iter += sizeof(ICONS_SUFFIX);
+			size_t prev_len = mem_buf.len;
+			const struct sfdo_string *data_dir = &data_dirs[i];
+			dir_iter->data = mem_buf.data + mem_buf.len;
+			// ICONS_SUFFIX includes a null terminator
+			sfdo_strbuild_add_raw(&mem_buf, data_dir->data, data_dir->len, ICONS_SUFFIX,
+					sizeof(ICONS_SUFFIX), NULL);
+			dir_iter->len = mem_buf.len - prev_len - 1;
 			++dir_iter;
 		}
+
+		assert(mem_buf.len == mem_buf.cap);
 
 		dir_iter->data = PIXMAPS_BASE_DIR;
 		dir_iter->len = sizeof(PIXMAPS_BASE_DIR) - 1;
 
 		ctx->default_basedirs = dirs;
-		ctx->default_basedirs_mem = mem;
+		ctx->default_basedirs_mem = mem_buf.data;
 		ctx->default_n_basedirs = n_dirs;
 	}
 

@@ -51,6 +51,9 @@ private_libs = [
     'name': 'strbuild',
   },
   {
+    'name': 'striter',
+  },
+  {
     'name': 'strpool',
   },
 ]
@@ -77,12 +80,17 @@ libs = [
   {
     'name': 'basedir',
     'description': 'XDG base directory specification implementation in C',
+    'deps': [
+      private_strbuild,
+      private_striter,
+    ],
   },
   {
     'name': 'desktop-file',
     'deps': [
       private_grow,
       private_hash,
+      private_strbuild,
     ],
     'description': 'Desktop entry file format parser library',
   },
@@ -93,6 +101,7 @@ libs = [
       private_hash,
       private_log,
       private_strbuild,
+      private_striter,
       private_strpool,
     ],
     'sfdo-deps': [

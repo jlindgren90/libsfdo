@@ -4,6 +4,8 @@
 #include <string.h>
 
 #include "api.h"
+#include "strbuild.h"
+#include "striter.h"
 
 #define DATA_HOME_FALLBACK "/.local/share/"
 #define CONFIG_HOME_FALLBACK "/.config/"
@@ -58,91 +60,82 @@ static bool init_dir_list(struct sfdo_string **ptr, char **mem_ptr, size_t *n_di
 	bool home_var_path_valid = !is_unset_or_empty(home_var_path) && is_absolute(home_var_path);
 
 	size_t home_path_len;
+	size_t mem_size;
 	if (home_var_path_valid) {
 		home_path_len = strlen(home_var_path);
+		mem_size = home_path_len + 1;
 		if (needs_extra_slash(home_var_path, home_path_len)) {
-			++home_path_len;
+			++mem_size;
 		}
 	} else {
 		home_path_len = home_len + home_fallback_len;
+		mem_size = home_path_len + 1;
 	}
 
 	size_t n_dirs = 1;
-	size_t mem_size = home_path_len + 1;
-	for (const char *p = list;;) {
-		size_t path_len = strcspn(p, ":");
-		if (is_absolute(p)) {
+
+	size_t path_start, path_len;
+	size_t iter = 0;
+
+	while (sfdo_striter(list, ':', &iter, &path_start, &path_len)) {
+		const char *path = list + path_start;
+		if (path_len > 0 && is_absolute(path)) {
 			++n_dirs;
 			mem_size += path_len + 1;
-			if (needs_extra_slash(p, path_len)) {
+			if (needs_extra_slash(path, path_len)) {
 				++mem_size;
 			}
 		}
-		p += path_len;
-		if (*p == '\0') {
-			break;
-		} else {
-			++p;
-		}
-	}
-
-	assert(mem_size > 0);
-	char *mem = malloc(mem_size);
-	if (mem == NULL) {
-		return false;
 	}
 
 	struct sfdo_string *dirs = calloc(n_dirs, sizeof(*dirs));
 	if (dirs == NULL) {
-		free(mem);
 		return false;
 	}
 
-	char *mem_iter = mem;
+	struct sfdo_strbuild mem_buf;
+	if (!sfdo_strbuild_setup_capped(&mem_buf, mem_size)) {
+		free(dirs);
+		return false;
+	}
 
 	// Home directory
-	dirs[0].data = mem_iter;
-	dirs[0].len = home_path_len;
+	size_t dir_i = 0;
+	struct sfdo_string *dir = &dirs[dir_i++];
+	dir->data = mem_buf.data + mem_buf.len;
+	dir->len = home_path_len;
 
 	if (home_var_path_valid) {
-		memcpy(mem_iter, home_var_path, home_path_len);
+		sfdo_strbuild_add_raw(&mem_buf, home_var_path, home_path_len, NULL);
+		if (needs_extra_slash(home_var_path, home_path_len)) {
+			sfdo_strbuild_add_raw(&mem_buf, "/", 1, NULL);
+		}
 	} else {
-		memcpy(mem_iter, home, home_len);
-		memcpy(mem_iter + home_len, home_fallback, home_fallback_len);
+		sfdo_strbuild_add_raw(&mem_buf, home, home_len, home_fallback, home_fallback_len, NULL);
 	}
-	mem_iter[home_path_len - 1] = '/';
-	mem_iter[home_path_len] = '\0';
+	sfdo_strbuild_add_raw(&mem_buf, "", 1, NULL);
 
-	mem_iter += home_path_len + 1;
-
-	size_t i = 1;
-	for (const char *p = list;;) {
-		size_t path_len = strcspn(p, ":");
-		if (is_absolute(p)) {
-			size_t len = path_len;
-			memcpy(mem_iter, p, len);
-			if (needs_extra_slash(p, len)) {
-				mem_iter[len++] = '/';
+	iter = 0;
+	while (sfdo_striter(list, ':', &iter, &path_start, &path_len)) {
+		const char *path = list + path_start;
+		if (path_len > 0 && is_absolute(path)) {
+			dir = &dirs[dir_i++];
+			dir->data = mem_buf.data + mem_buf.len;
+			dir->len = path_len;
+			sfdo_strbuild_add_raw(&mem_buf, path, path_len, NULL);
+			if (needs_extra_slash(path, path_len)) {
+				sfdo_strbuild_add_raw(&mem_buf, "/", 1, NULL);
+				++dir->len;
 			}
-			mem_iter[len] = '\0';
-			dirs[i].data = mem_iter;
-			dirs[i].len = len;
-			mem_iter += len + 1;
-			++i;
-		}
-		p += path_len;
-		if (*p == '\0') {
-			break;
-		} else {
-			++p;
+			sfdo_strbuild_add_raw(&mem_buf, "", 1, NULL);
 		}
 	}
 
-	assert(i == n_dirs);
-	assert(mem_iter == mem + mem_size);
+	assert(dir_i == n_dirs);
+	assert(mem_buf.len == mem_buf.cap);
 
 	*ptr = dirs;
-	*mem_ptr = mem;
+	*mem_ptr = mem_buf.data;
 	*n_dirs_ptr = n_dirs;
 	return true;
 }
@@ -153,36 +146,42 @@ static bool init_dir(struct sfdo_string *ptr, char **mem_ptr, const char *home, 
 	bool var_path_valid = !is_unset_or_empty(var_path) && is_absolute(var_path);
 
 	size_t path_len;
+	size_t mem_size;
 	if (var_path_valid) {
 		path_len = strlen(var_path);
+		mem_size = path_len + 1;
 		if (needs_extra_slash(var_path, path_len)) {
-			++path_len;
+			++mem_size;
 		}
 	} else {
 		if (home_fallback == NULL) {
 			return true;
 		}
 		path_len = home_len + home_fallback_len;
+		mem_size = path_len + 1;
 	}
 
-	char *mem = malloc(path_len + 1);
-	if (mem == NULL) {
+	struct sfdo_strbuild mem_buf;
+	if (!sfdo_strbuild_setup_capped(&mem_buf, mem_size)) {
 		return false;
 	}
 
-	ptr->data = mem;
+	ptr->data = mem_buf.data;
 	ptr->len = path_len;
 
 	if (var_path_valid) {
-		memcpy(mem, var_path, path_len);
+		sfdo_strbuild_add_raw(&mem_buf, var_path, path_len, NULL);
+		if (needs_extra_slash(var_path, path_len)) {
+			sfdo_strbuild_add_raw(&mem_buf, "/", 1, NULL);
+		}
 	} else {
-		memcpy(mem, home, home_len);
-		memcpy(mem + home_len, home_fallback, home_fallback_len);
+		sfdo_strbuild_add_raw(&mem_buf, home, home_len, home_fallback, home_fallback_len, NULL);
 	}
-	mem[path_len - 1] = '/';
-	mem[path_len] = '\0';
+	sfdo_strbuild_add_raw(&mem_buf, "", 1, NULL);
 
-	*mem_ptr = mem;
+	assert(mem_buf.len == mem_buf.cap);
+
+	*mem_ptr = mem_buf.data;
 	return true;
 }
 

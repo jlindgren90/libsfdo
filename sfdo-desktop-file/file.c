@@ -6,6 +6,7 @@
 #include "api.h"
 #include "grow.h"
 #include "hash.h"
+#include "strbuild.h"
 
 #define RUNE_EOF (-1)
 #define RUNE_NONE (-2)
@@ -45,7 +46,8 @@ struct sfdo_desktop_file_loader {
 	char rune_bytes[4];
 	size_t rune_len;
 
-	char *locales[N_LOCALES_MAX];
+	char *locale_data;
+	const char *locales[N_LOCALES_MAX];
 	size_t n_locales;
 
 	char *buf;
@@ -611,67 +613,42 @@ static bool prepare_locales(struct sfdo_desktop_file_loader *loader, const char 
 	bool has_country = country_len > 0;
 	bool has_modifier = modifier_len > 0;
 
-	// lang + null terminator
-	size_t locale_len = lang_len + 1;
-	char *locale_p = malloc(locale_len);
-	if (locale_p == NULL) {
+	size_t mem_size = lang_len + 1;
+	if (has_modifier) {
+		mem_size += lang_len + 1 + modifier_len + 1;
+	}
+	if (has_country) {
+		mem_size += lang_len + 1 + country_len + 1;
+	}
+	if (has_country && has_modifier) {
+		mem_size += lang_len + 1 + country_len + 1 + modifier_len + 1;
+	}
+
+	struct sfdo_strbuild mem_buf;
+	if (!sfdo_strbuild_setup_capped(&mem_buf, mem_size)) {
 		return false;
 	}
-	loader->locales[loader->n_locales++] = locale_p;
-	memcpy(locale_p, str, lang_len);
-	locale_p += lang_len;
-	*locale_p = '\0';
 
+	loader->locales[loader->n_locales++] = mem_buf.data + mem_buf.len;
+	sfdo_strbuild_add_raw(&mem_buf, str, lang_len, "", 1, NULL);
 	if (has_modifier) {
-		// lang@MODIFIER + null terminator
-		locale_len = lang_len + 1 + modifier_len + 1;
-		locale_p = malloc(locale_len);
-		if (locale_p == NULL) {
-			return false;
-		}
-		loader->locales[loader->n_locales++] = locale_p;
-		memcpy(locale_p, str, lang_len);
-		locale_p += lang_len;
-		*(locale_p++) = '@';
-		memcpy(locale_p, str + modifier_i, modifier_len);
-		locale_p += modifier_len;
-		*locale_p = '\0';
+		loader->locales[loader->n_locales++] = mem_buf.data + mem_buf.len;
+		sfdo_strbuild_add_raw(
+				&mem_buf, str, lang_len, "@", 1, str + modifier_i, modifier_len, "", 1, NULL);
 	}
-
 	if (has_country) {
-		// lang_COUNTRY + null terminator
-		locale_len = lang_len + 1 + country_len + 1;
-		locale_p = malloc(locale_len);
-		if (locale_p == NULL) {
-			return false;
-		}
-		loader->locales[loader->n_locales++] = locale_p;
-		memcpy(locale_p, str, lang_len);
-		locale_p += lang_len;
-		*(locale_p++) = '_';
-		memcpy(locale_p, str + country_i, country_len);
-		locale_p += country_len;
-		*locale_p = '\0';
+		loader->locales[loader->n_locales++] = mem_buf.data + mem_buf.len;
+		sfdo_strbuild_add_raw(
+				&mem_buf, str, lang_len, "_", 1, str + country_i, country_len, "", 1, NULL);
 	}
-
 	if (has_country && has_modifier) {
-		// lang_COUNTRY@MODIFIER + null terminator
-		locale_len = lang_len + 1 + country_len + 1 + modifier_len + 1;
-		locale_p = malloc(locale_len);
-		if (locale_p == NULL) {
-			return false;
-		}
-		loader->locales[loader->n_locales++] = locale_p;
-		memcpy(locale_p, str, lang_len);
-		locale_p += lang_len;
-		*(locale_p++) = '_';
-		memcpy(locale_p, str + country_i, country_len);
-		locale_p += country_len;
-		*(locale_p++) = '@';
-		memcpy(locale_p, str + modifier_i, modifier_len);
-		locale_p += modifier_len;
-		*locale_p = '\0';
+		loader->locales[loader->n_locales++] = mem_buf.data + mem_buf.len;
+		sfdo_strbuild_add_raw(&mem_buf, str, lang_len, "_", 1, str + country_i, country_len, "@", 1,
+				str + modifier_i, modifier_len, "", 1, NULL);
 	}
+	assert(mem_buf.len == mem_buf.cap);
+
+	loader->locale_data = mem_buf.data;
 
 	return true;
 }
@@ -706,10 +683,7 @@ SFDO_API bool sfdo_desktop_file_load(FILE *fp, struct sfdo_desktop_file_error *e
 		ok = load(&loader);
 	}
 
-	for (size_t i = 0; i < loader.n_locales; i++) {
-		free(loader.locales[i]);
-	}
-
+	free(loader.locale_data);
 	free(loader.buf);
 
 	struct sfdo_desktop_file_seen_group *seen_group = loader.groups;

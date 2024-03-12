@@ -7,6 +7,7 @@
 #include "api.h"
 #include "hash.h"
 #include "icon.h"
+#include "striter.h"
 #include "strpool.h"
 
 #define DEFAULT_THEME_NAME "hicolor"
@@ -98,48 +99,18 @@ static bool schedule_node(struct sfdo_icon_loader *loader, const char *name, siz
 	return true;
 }
 
-// TODO: extract
-static char *iterate_list(char *list, char sep, char **iter, size_t *len) {
-	if (*iter == NULL) {
-		*iter = list;
-	}
-	char *item = *iter;
-	if (*item == '\0') {
-		return NULL;
-	}
-	size_t i = 0;
-	while (true) {
-		if (item[i] == sep) {
-			*len = i;
-			item[i++] = '\0';
-			break;
-		} else if (item[i] == '\0') {
-			*len = i;
-			break;
-		}
-		++i;
-	}
-	*iter += i;
-	return item;
-}
-
-static bool schedule_node_list(struct sfdo_icon_loader *loader, const char *node_list) {
+static bool schedule_node_list(struct sfdo_icon_loader *loader, const char *list) {
 	struct sfdo_icon_scheduled_node *last = loader->curr_node;
 
-	for (const char *p = node_list; p != NULL;) {
-		size_t name_len = strcspn(p, ",");
-		const char *name = p;
-		if (p[name_len] == '\0') {
-			p = NULL;
-		} else {
-			p += name_len + 1;
-		}
+	size_t name_start, name_len;
+	size_t iter = 0;
+	while (sfdo_striter(list, ',', &iter, &name_start, &name_len)) {
 		if (name_len == 0) {
 			continue;
 		}
 
 		struct sfdo_icon_scheduled_node *s_node;
-		if (!schedule_node(loader, name, name_len, &s_node)) {
+		if (!schedule_node(loader, list + name_start, name_len, &s_node)) {
 			return false;
 		}
 
@@ -157,13 +128,14 @@ static bool add_directory_list(
 		struct sfdo_icon_loader *loader, char *list, int group_line, int group_column) {
 	struct sfdo_logger *logger = &loader->theme->ctx->logger;
 
-	char *dir;
-	size_t dir_len;
-	char *iter = NULL;
-	while ((dir = iterate_list(list, ',', &iter, &dir_len)) != NULL) {
+	size_t dir_start, dir_len;
+	size_t iter = 0;
+	while (sfdo_striter(list, ',', &iter, &dir_start, &dir_len)) {
 		if (dir_len == 0) {
 			continue;
 		}
+		char *dir = list + dir_start;
+		dir[dir_len] = '\0';
 		struct sfdo_hashmap_entry *entry = sfdo_hashmap_get(&loader->subdir_group_set, dir, true);
 		if (entry == NULL) {
 			logger_write_oom(logger);
