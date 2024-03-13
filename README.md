@@ -4,7 +4,10 @@ A collection of libraries which implement [Freedesktop.org specifications].
 
 See respective header files for documentation.
 
+Discuss in [#eclairs on Libera.Chat].
+
 [Freedesktop.org specifications]: https://specifications.freedesktop.org/
+[#eclairs on Libera.Chat]: https://web.libera.chat/#eclairs
 
 ## Status
 
