@@ -4,7 +4,7 @@
 #include <string.h>
 
 #include "api.h"
-#include "strbuild.h"
+#include "membuild.h"
 #include "striter.h"
 
 #define DATA_HOME_FALLBACK "/.local/share/"
@@ -93,8 +93,8 @@ static bool init_dir_list(struct sfdo_string **ptr, char **mem_ptr, size_t *n_di
 		return false;
 	}
 
-	struct sfdo_strbuild mem_buf;
-	if (!sfdo_strbuild_setup_capped(&mem_buf, mem_size)) {
+	struct sfdo_membuild mem_buf;
+	if (!sfdo_membuild_setup(&mem_buf, mem_size)) {
 		free(dirs);
 		return false;
 	}
@@ -106,14 +106,14 @@ static bool init_dir_list(struct sfdo_string **ptr, char **mem_ptr, size_t *n_di
 	dir->len = home_path_len;
 
 	if (home_var_path_valid) {
-		sfdo_strbuild_add_raw(&mem_buf, home_var_path, home_path_len, NULL);
+		sfdo_membuild_add(&mem_buf, home_var_path, home_path_len, NULL);
 		if (needs_extra_slash(home_var_path, home_path_len)) {
-			sfdo_strbuild_add_raw(&mem_buf, "/", 1, NULL);
+			sfdo_membuild_add(&mem_buf, "/", 1, NULL);
 		}
 	} else {
-		sfdo_strbuild_add_raw(&mem_buf, home, home_len, home_fallback, home_fallback_len, NULL);
+		sfdo_membuild_add(&mem_buf, home, home_len, home_fallback, home_fallback_len, NULL);
 	}
-	sfdo_strbuild_add_raw(&mem_buf, "", 1, NULL);
+	sfdo_membuild_add(&mem_buf, "", 1, NULL);
 
 	iter = 0;
 	while (sfdo_striter(list, ':', &iter, &path_start, &path_len)) {
@@ -122,17 +122,17 @@ static bool init_dir_list(struct sfdo_string **ptr, char **mem_ptr, size_t *n_di
 			dir = &dirs[dir_i++];
 			dir->data = mem_buf.data + mem_buf.len;
 			dir->len = path_len;
-			sfdo_strbuild_add_raw(&mem_buf, path, path_len, NULL);
+			sfdo_membuild_add(&mem_buf, path, path_len, NULL);
 			if (needs_extra_slash(path, path_len)) {
-				sfdo_strbuild_add_raw(&mem_buf, "/", 1, NULL);
+				sfdo_membuild_add(&mem_buf, "/", 1, NULL);
 				++dir->len;
 			}
-			sfdo_strbuild_add_raw(&mem_buf, "", 1, NULL);
+			sfdo_membuild_add(&mem_buf, "", 1, NULL);
 		}
 	}
 
 	assert(dir_i == n_dirs);
-	assert(mem_buf.len == mem_buf.cap);
+	assert(mem_buf.len == mem_size);
 
 	*ptr = dirs;
 	*mem_ptr = mem_buf.data;
@@ -161,8 +161,8 @@ static bool init_dir(struct sfdo_string *ptr, char **mem_ptr, const char *home, 
 		mem_size = path_len + 1;
 	}
 
-	struct sfdo_strbuild mem_buf;
-	if (!sfdo_strbuild_setup_capped(&mem_buf, mem_size)) {
+	struct sfdo_membuild mem_buf;
+	if (!sfdo_membuild_setup(&mem_buf, mem_size)) {
 		return false;
 	}
 
@@ -170,16 +170,16 @@ static bool init_dir(struct sfdo_string *ptr, char **mem_ptr, const char *home, 
 	ptr->len = path_len;
 
 	if (var_path_valid) {
-		sfdo_strbuild_add_raw(&mem_buf, var_path, path_len, NULL);
+		sfdo_membuild_add(&mem_buf, var_path, path_len, NULL);
 		if (needs_extra_slash(var_path, path_len)) {
-			sfdo_strbuild_add_raw(&mem_buf, "/", 1, NULL);
+			sfdo_membuild_add(&mem_buf, "/", 1, NULL);
 		}
 	} else {
-		sfdo_strbuild_add_raw(&mem_buf, home, home_len, home_fallback, home_fallback_len, NULL);
+		sfdo_membuild_add(&mem_buf, home, home_len, home_fallback, home_fallback_len, NULL);
 	}
-	sfdo_strbuild_add_raw(&mem_buf, "", 1, NULL);
+	sfdo_membuild_add(&mem_buf, "", 1, NULL);
 
-	assert(mem_buf.len == mem_buf.cap);
+	assert(mem_buf.len == mem_size);
 
 	*mem_ptr = mem_buf.data;
 	return true;

@@ -6,7 +6,7 @@
 #include "api.h"
 #include "grow.h"
 #include "hash.h"
-#include "strbuild.h"
+#include "membuild.h"
 
 #define RUNE_EOF (-1)
 #define RUNE_NONE (-2)
@@ -624,29 +624,30 @@ static bool prepare_locales(struct sfdo_desktop_file_loader *loader, const char 
 		mem_size += lang_len + 1 + country_len + 1 + modifier_len + 1;
 	}
 
-	struct sfdo_strbuild mem_buf;
-	if (!sfdo_strbuild_setup_capped(&mem_buf, mem_size)) {
+	struct sfdo_membuild mem_buf;
+	if (!sfdo_membuild_setup(&mem_buf, mem_size)) {
 		return false;
 	}
 
 	loader->locales[loader->n_locales++] = mem_buf.data + mem_buf.len;
-	sfdo_strbuild_add_raw(&mem_buf, str, lang_len, "", 1, NULL);
+	sfdo_membuild_add(&mem_buf, str, lang_len, "", 1, NULL);
 	if (has_modifier) {
 		loader->locales[loader->n_locales++] = mem_buf.data + mem_buf.len;
-		sfdo_strbuild_add_raw(
+		sfdo_membuild_add(
 				&mem_buf, str, lang_len, "@", 1, str + modifier_i, modifier_len, "", 1, NULL);
 	}
 	if (has_country) {
 		loader->locales[loader->n_locales++] = mem_buf.data + mem_buf.len;
-		sfdo_strbuild_add_raw(
+		sfdo_membuild_add(
 				&mem_buf, str, lang_len, "_", 1, str + country_i, country_len, "", 1, NULL);
 	}
 	if (has_country && has_modifier) {
 		loader->locales[loader->n_locales++] = mem_buf.data + mem_buf.len;
-		sfdo_strbuild_add_raw(&mem_buf, str, lang_len, "_", 1, str + country_i, country_len, "@", 1,
+		sfdo_membuild_add(&mem_buf, str, lang_len, "_", 1, str + country_i, country_len, "@", 1,
 				str + modifier_i, modifier_len, "", 1, NULL);
 	}
-	assert(mem_buf.len == mem_buf.cap);
+
+	assert(mem_buf.len == mem_size);
 
 	loader->locale_data = mem_buf.data;
 

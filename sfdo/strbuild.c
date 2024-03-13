@@ -5,15 +5,6 @@
 
 #include "strbuild.h"
 
-static void add_args(struct sfdo_strbuild *strbuild, va_list args) {
-	const char *data;
-	while ((data = va_arg(args, const char *)) != NULL) {
-		size_t len = va_arg(args, size_t);
-		memcpy(&strbuild->data[strbuild->len], data, len);
-		strbuild->len += len;
-	}
-}
-
 void sfdo_strbuild_init(struct sfdo_strbuild *strbuild) {
 	strbuild->data = NULL;
 	strbuild->len = strbuild->cap = 0;
@@ -57,31 +48,17 @@ bool sfdo_strbuild_add(struct sfdo_strbuild *strbuild, ...) {
 	}
 
 	va_start(args, strbuild);
-	add_args(strbuild, args);
+
+	const char *data;
+	while ((data = va_arg(args, const char *)) != NULL) {
+		size_t len = va_arg(args, size_t);
+		memcpy(&strbuild->data[strbuild->len], data, len);
+		strbuild->len += len;
+	}
+
 	va_end(args);
 
 	strbuild->data[strbuild->len] = '\0';
 
 	return true;
-}
-
-bool sfdo_strbuild_setup_capped(struct sfdo_strbuild *strbuild, size_t cap) {
-	if (cap > 0) {
-		strbuild->data = malloc(cap);
-		if (strbuild->data == NULL) {
-			return false;
-		}
-	} else {
-		strbuild->data = NULL;
-	}
-	strbuild->len = 0;
-	strbuild->cap = cap;
-	return true;
-}
-
-void sfdo_strbuild_add_raw(struct sfdo_strbuild *strbuild, ...) {
-	va_list args;
-	va_start(args, strbuild);
-	add_args(strbuild, args);
-	va_end(args);
 }

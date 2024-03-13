@@ -6,6 +6,7 @@
 
 #include "api.h"
 #include "icon.h"
+#include "membuild.h"
 
 #define ICONS_HOME_DIR "/.icons/"
 #define ICONS_SUFFIX "icons/"
@@ -40,8 +41,8 @@ SFDO_API struct sfdo_icon_ctx *sfdo_icon_ctx_create(struct sfdo_basedir_ctx *bas
 			goto err;
 		}
 
-		struct sfdo_strbuild mem_buf;
-		if (!sfdo_strbuild_setup_capped(&mem_buf, mem_size)) {
+		struct sfdo_membuild mem_buf;
+		if (!sfdo_membuild_setup(&mem_buf, mem_size)) {
 			free(dirs);
 			goto err;
 		}
@@ -49,24 +50,19 @@ SFDO_API struct sfdo_icon_ctx *sfdo_icon_ctx_create(struct sfdo_basedir_ctx *bas
 		struct sfdo_string *dir_iter = dirs;
 
 		dir_iter->data = mem_buf.data + mem_buf.len;
-		// ICONS_HOME_DIR includes a null terminator
-		sfdo_strbuild_add_raw(
-				&mem_buf, home, home_len, ICONS_HOME_DIR, sizeof(ICONS_HOME_DIR), NULL);
-		dir_iter->len = mem_buf.len - 1;
+		dir_iter->len = home_len + sizeof(ICONS_HOME_DIR) - 1;
+		sfdo_membuild_add(&mem_buf, home, home_len, ICONS_HOME_DIR, sizeof(ICONS_HOME_DIR), NULL);
 		++dir_iter;
 
 		for (size_t i = 0; i < n_data_dirs; i++) {
-			size_t prev_len = mem_buf.len;
 			const struct sfdo_string *data_dir = &data_dirs[i];
 			dir_iter->data = mem_buf.data + mem_buf.len;
-			// ICONS_SUFFIX includes a null terminator
-			sfdo_strbuild_add_raw(&mem_buf, data_dir->data, data_dir->len, ICONS_SUFFIX,
+			dir_iter->len = data_dir->len + sizeof(ICONS_SUFFIX) - 1;
+			sfdo_membuild_add(&mem_buf, data_dir->data, data_dir->len, ICONS_SUFFIX,
 					sizeof(ICONS_SUFFIX), NULL);
-			dir_iter->len = mem_buf.len - prev_len - 1;
 			++dir_iter;
 		}
-
-		assert(mem_buf.len == mem_buf.cap);
+		assert(mem_buf.len == mem_size);
 
 		dir_iter->data = PIXMAPS_BASE_DIR;
 		dir_iter->len = sizeof(PIXMAPS_BASE_DIR) - 1;
