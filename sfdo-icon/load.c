@@ -236,9 +236,8 @@ static bool df_group_handler(struct sfdo_desktop_file_group *group, void *data) 
 	struct sfdo_icon_subdir_group *subdir_group =
 			sfdo_hashmap_get(&loader->subdir_group_set, group_name, false);
 	if (subdir_group == NULL) {
-		logger_write(logger, loader->relaxed ? SFDO_LOG_LEVEL_INFO : SFDO_LOG_LEVEL_ERROR,
-				"%d:%d: unexpected directory group \"%s\"", group_line, group_column, group_name);
-		return loader->relaxed;
+		// Unknown group, ignore all entries
+		return true;
 	} else if (subdir_group->seen) {
 		logger_write(logger, loader->relaxed ? SFDO_LOG_LEVEL_INFO : SFDO_LOG_LEVEL_ERROR,
 				"%d:%d: duplicate directory group \"%s\"", group_line, group_column, group_name);
