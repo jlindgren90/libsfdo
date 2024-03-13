@@ -37,40 +37,11 @@ include_dir = include_directories('include')
 
 subdir('sfdo')
 
-private_libs = [
-  {
-    'name': 'grow',
-  },
-  {
-    'name': 'hash',
-  },
-  {
-    'name': 'log',
-  },
-  {
-    'name': 'strbuild',
-  },
-  {
-    'name': 'striter',
-  },
-  {
-    'name': 'strpool',
-  },
-]
-
-foreach template : private_libs
-  name = template['name']
-  set_variable('private_' + template['name'],
-    declare_dependency(
-      link_with: static_library(
-        'sfdo-private-' + name,
-        get_variable('private_' + name + '_src'),
-        include_directories: include_dir,
-        dependencies: template.get('deps', [])
-      ),
-    )
-  )
-endforeach
+private = static_library(
+  'sfdo-private',
+  private_src,
+  include_directories: include_dir,
+)
 
 install_headers('include/sfdo-common.h')
 
@@ -80,30 +51,13 @@ libs = [
   {
     'name': 'basedir',
     'description': 'XDG base directory specification implementation in C',
-    'deps': [
-      private_strbuild,
-      private_striter,
-    ],
   },
   {
     'name': 'desktop-file',
-    'deps': [
-      private_grow,
-      private_hash,
-      private_strbuild,
-    ],
     'description': 'Desktop entry file format parser library',
   },
   {
     'name': 'icon',
-    'deps': [
-      private_grow,
-      private_hash,
-      private_log,
-      private_strbuild,
-      private_striter,
-      private_strpool,
-    ],
     'sfdo-deps': [
       'basedir',
       'desktop-file',
@@ -128,6 +82,7 @@ foreach template : libs
     'sfdo-' + name,
     get_variable('sfdo_' + name.underscorify() + '_src'),
     include_directories: include_dir,
+    link_with: private,
     dependencies: deps,
     version: soversion,
     install: true,
