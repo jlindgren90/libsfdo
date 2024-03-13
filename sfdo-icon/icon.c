@@ -84,6 +84,10 @@ err:
 }
 
 SFDO_API void sfdo_icon_ctx_destroy(struct sfdo_icon_ctx *ctx) {
+	if (ctx == NULL) {
+		return;
+	}
+
 	free(ctx->default_basedirs);
 	free(ctx->default_basedirs_mem);
 	free(ctx);

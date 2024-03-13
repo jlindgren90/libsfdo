@@ -233,6 +233,10 @@ err:
 }
 
 SFDO_API void sfdo_basedir_ctx_destroy(struct sfdo_basedir_ctx *ctx) {
+	if (ctx == NULL) {
+		return;
+	}
+
 	free(ctx->data_dirs);
 	free(ctx->config_dirs);
 

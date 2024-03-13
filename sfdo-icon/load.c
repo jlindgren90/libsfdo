@@ -585,6 +585,10 @@ err:
 }
 
 SFDO_API void sfdo_icon_theme_destroy(struct sfdo_icon_theme *theme) {
+	if (theme == NULL) {
+		return;
+	}
+
 	struct sfdo_icon_theme_node *node = theme->nodes;
 	while (node != NULL) {
 		struct sfdo_icon_theme_node *next = node->next;
