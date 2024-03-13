@@ -221,18 +221,26 @@ found:
 		abort(); // Unreachable
 	}
 
-	static const char exts[][EXTENSION_LEN + 1] = {
-		[SFDO_ICON_FILE_FORMAT_PNG] = "png",
-		[SFDO_ICON_FILE_FORMAT_SVG] = "svg",
-		[SFDO_ICON_FILE_FORMAT_XPM] = "xpm",
-	};
+	const char *ext;
+	switch (file->format) {
+	case SFDO_ICON_FILE_FORMAT_PNG:
+		ext = "png";
+		break;
+	case SFDO_ICON_FILE_FORMAT_SVG:
+		ext = "svg";
+		break;
+	case SFDO_ICON_FILE_FORMAT_XPM:
+		ext = "xpm";
+		break;
+	case SFDO_ICON_FILE_FORMAT_NONE:
+		abort(); // Unreachable
+	}
 
 	if (node != NULL) {
 		snprintf(file->path, path_size, "%s%s/%s/%s.%s", img->basedir->data, node->name,
-				img->subdir->path.data, img_name, exts[file->format]);
+				img->subdir->path.data, img_name, ext);
 	} else {
-		snprintf(
-				file->path, path_size, "%s%s.%s", img->basedir->data, img_name, exts[file->format]);
+		snprintf(file->path, path_size, "%s%s.%s", img->basedir->data, img_name, ext);
 	}
 
 	return file;
