@@ -6,7 +6,7 @@ examples = [
     ],
   },
   {
-    'name': 'desktop-file-load',
+    'name': 'desktop-file-query',
     'deps': [
       sfdo_desktop_file,
     ],
