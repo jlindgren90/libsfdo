@@ -7,6 +7,7 @@
 #include "api.h"
 #include "hash.h"
 #include "icon.h"
+#include "path.h"
 #include "striter.h"
 #include "strpool.h"
 
@@ -529,11 +530,18 @@ static struct sfdo_icon_theme *theme_create(
 		const struct sfdo_string *src = &basedirs[i];
 		struct sfdo_string *dst = &theme->basedirs[i];
 
-		dst->data = sfdo_strpool_add(&theme->strings, src->data, src->len);
-		if (dst->data == NULL) {
+		size_t dst_len = src->len;
+		if (sfdo_path_needs_extra_slash(src->data, src->len)) {
+			++dst_len;
+		}
+		char *data = sfdo_strpool_add_with_cap(&theme->strings, src->data, src->len, dst_len);
+		if (data == NULL) {
 			goto err_strings;
 		}
-		dst->len = src->len;
+		data[dst_len - 1] = '/';
+
+		dst->data = data;
+		dst->len = dst_len;
 	}
 
 	if (!icon_state_init(&theme->state, n_basedirs)) {

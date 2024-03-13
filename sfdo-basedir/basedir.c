@@ -5,6 +5,7 @@
 
 #include "api.h"
 #include "membuild.h"
+#include "path.h"
 #include "striter.h"
 
 #define DATA_HOME_FALLBACK "/.local/share/"
@@ -44,10 +45,6 @@ static inline bool is_absolute(const char *path) {
 	return path[0] == '/';
 }
 
-static inline bool needs_extra_slash(const char *path, size_t len) {
-	return len >= 2 && path[len - 1] != '/';
-}
-
 static bool init_dir_list(struct sfdo_string **ptr, char **mem_ptr, size_t *n_dirs_ptr,
 		const char *home, size_t home_len, const char *home_var_name, const char *home_fallback,
 		size_t home_fallback_len, const char *list_var_name, const char *list_fallback) {
@@ -64,7 +61,7 @@ static bool init_dir_list(struct sfdo_string **ptr, char **mem_ptr, size_t *n_di
 	if (home_var_path_valid) {
 		home_path_len = strlen(home_var_path);
 		mem_size = home_path_len + 1;
-		if (needs_extra_slash(home_var_path, home_path_len)) {
+		if (sfdo_path_needs_extra_slash(home_var_path, home_path_len)) {
 			++mem_size;
 		}
 	} else {
@@ -82,7 +79,7 @@ static bool init_dir_list(struct sfdo_string **ptr, char **mem_ptr, size_t *n_di
 		if (path_len > 0 && is_absolute(path)) {
 			++n_dirs;
 			mem_size += path_len + 1;
-			if (needs_extra_slash(path, path_len)) {
+			if (sfdo_path_needs_extra_slash(path, path_len)) {
 				++mem_size;
 			}
 		}
@@ -107,7 +104,7 @@ static bool init_dir_list(struct sfdo_string **ptr, char **mem_ptr, size_t *n_di
 
 	if (home_var_path_valid) {
 		sfdo_membuild_add(&mem_buf, home_var_path, home_path_len, NULL);
-		if (needs_extra_slash(home_var_path, home_path_len)) {
+		if (sfdo_path_needs_extra_slash(home_var_path, home_path_len)) {
 			sfdo_membuild_add(&mem_buf, "/", 1, NULL);
 		}
 	} else {
@@ -123,7 +120,7 @@ static bool init_dir_list(struct sfdo_string **ptr, char **mem_ptr, size_t *n_di
 			dir->data = mem_buf.data + mem_buf.len;
 			dir->len = path_len;
 			sfdo_membuild_add(&mem_buf, path, path_len, NULL);
-			if (needs_extra_slash(path, path_len)) {
+			if (sfdo_path_needs_extra_slash(path, path_len)) {
 				sfdo_membuild_add(&mem_buf, "/", 1, NULL);
 				++dir->len;
 			}
@@ -150,7 +147,7 @@ static bool init_dir(struct sfdo_string *ptr, char **mem_ptr, const char *home, 
 	if (var_path_valid) {
 		path_len = strlen(var_path);
 		mem_size = path_len + 1;
-		if (needs_extra_slash(var_path, path_len)) {
+		if (sfdo_path_needs_extra_slash(var_path, path_len)) {
 			++mem_size;
 		}
 	} else {
@@ -171,7 +168,7 @@ static bool init_dir(struct sfdo_string *ptr, char **mem_ptr, const char *home, 
 
 	if (var_path_valid) {
 		sfdo_membuild_add(&mem_buf, var_path, path_len, NULL);
-		if (needs_extra_slash(var_path, path_len)) {
+		if (sfdo_path_needs_extra_slash(var_path, path_len)) {
 			sfdo_membuild_add(&mem_buf, "/", 1, NULL);
 		}
 	} else {
