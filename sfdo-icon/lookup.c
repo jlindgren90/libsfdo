@@ -15,15 +15,6 @@ struct sfdo_icon_file {
 	size_t path_len;
 };
 
-// Must be never read from
-static struct sfdo_icon_file file_none = {
-	.format = SFDO_ICON_FILE_FORMAT_PNG,
-	.path = NULL,
-	.path_len = 0,
-};
-
-SFDO_API const struct sfdo_icon_file *const sfdo_icon_file_none = &file_none;
-
 // SPEC: the algorithm in the specification results in suboptimal matches
 static bool curr_is_better(const struct sfdo_icon_image *best, int best_dist,
 		const struct sfdo_icon_image *curr, int curr_dist, int size, int scale, int pixel_size) {
@@ -127,8 +118,8 @@ static const struct sfdo_icon_image *theme_lookup_fallback_icon(
 	return NULL;
 }
 
-SFDO_API struct sfdo_icon_file *sfdo_icon_theme_lookup(struct sfdo_icon_theme *theme,
-		const char *name, size_t name_len, int size, int scale, int options) {
+SFDO_API bool sfdo_icon_theme_lookup(struct sfdo_icon_theme *theme, const char *name,
+		size_t name_len, int size, int scale, int options, struct sfdo_icon_file **file) {
 	if (name_len == SFDO_NT) {
 		name_len = strlen(name);
 	}
@@ -136,11 +127,12 @@ SFDO_API struct sfdo_icon_file *sfdo_icon_theme_lookup(struct sfdo_icon_theme *t
 		.data = name,
 		.len = name_len,
 	};
-	return sfdo_icon_theme_lookup_best(theme, &name_str, 1, size, scale, options);
+	return sfdo_icon_theme_lookup_best(theme, &name_str, 1, size, scale, options, file);
 }
 
-SFDO_API struct sfdo_icon_file *sfdo_icon_theme_lookup_best(struct sfdo_icon_theme *theme,
-		const struct sfdo_string *names, size_t n_names, int size, int scale, int options) {
+SFDO_API bool sfdo_icon_theme_lookup_best(struct sfdo_icon_theme *theme,
+		const struct sfdo_string *names, size_t n_names, int size, int scale, int options,
+		struct sfdo_icon_file **file) {
 	struct sfdo_logger *logger = &theme->ctx->logger;
 
 	assert(size > 0);
@@ -148,11 +140,11 @@ SFDO_API struct sfdo_icon_file *sfdo_icon_theme_lookup_best(struct sfdo_icon_the
 
 	int pixel_size = size * scale;
 	if (pixel_size < 0) {
-		return NULL;
+		return false;
 	}
 
 	if (!icon_theme_maybe_rescan(theme)) {
-		return NULL;
+		return false;
 	}
 
 	int formats = SFDO_ICON_FORMAT_MASK_PNG | SFDO_ICON_FORMAT_MASK_XPM;
@@ -185,7 +177,8 @@ SFDO_API struct sfdo_icon_file *sfdo_icon_theme_lookup_best(struct sfdo_icon_the
 		}
 	}
 
-	return &file_none;
+	*file = NULL;
+	return true;
 
 found:
 	assert((node == NULL) == (img->subdir == NULL));
@@ -202,34 +195,34 @@ found:
 
 	size_t path_size = path_len + 1;
 
-	struct sfdo_icon_file *file = calloc(1, sizeof(*file));
-	if (file == NULL) {
+	struct sfdo_icon_file *result = calloc(1, sizeof(*result));
+	if (result == NULL) {
 		logger_write_oom(logger);
-		return NULL;
+		return false;
 	}
 
-	file->path = malloc(path_size);
-	if (file->path == NULL) {
+	result->path = malloc(path_size);
+	if (result->path == NULL) {
 		logger_write_oom(logger);
-		free(file);
-		return NULL;
+		free(result);
+		return false;
 	}
 
-	file->path_len = path_len;
+	result->path_len = path_len;
 
 	formats &= img->formats;
 	if ((formats & SFDO_ICON_FORMAT_MASK_PNG) != 0) {
-		file->format = SFDO_ICON_FILE_FORMAT_PNG;
+		result->format = SFDO_ICON_FILE_FORMAT_PNG;
 	} else if ((formats & SFDO_ICON_FORMAT_MASK_SVG) != 0) {
-		file->format = SFDO_ICON_FILE_FORMAT_SVG;
+		result->format = SFDO_ICON_FILE_FORMAT_SVG;
 	} else if ((formats & SFDO_ICON_FORMAT_MASK_XPM) != 0) {
-		file->format = SFDO_ICON_FILE_FORMAT_XPM;
+		result->format = SFDO_ICON_FILE_FORMAT_XPM;
 	} else {
 		abort(); // Unreachable
 	}
 
-	const char *ext;
-	switch (file->format) {
+	const char *ext = NULL;
+	switch (result->format) {
 	case SFDO_ICON_FILE_FORMAT_PNG:
 		ext = "png";
 		break;
@@ -239,18 +232,18 @@ found:
 	case SFDO_ICON_FILE_FORMAT_XPM:
 		ext = "xpm";
 		break;
-	case SFDO_ICON_FILE_FORMAT_NONE:
-		abort(); // Unreachable
 	}
+	assert(ext != NULL);
 
 	if (node != NULL) {
-		snprintf(file->path, path_size, "%s%s/%s/%s.%s", img->basedir->data, node->name,
+		snprintf(result->path, path_size, "%s%s/%s/%s.%s", img->basedir->data, node->name,
 				img->subdir->path.data, img_name->data, ext);
 	} else {
-		snprintf(file->path, path_size, "%s%s.%s", img->basedir->data, img_name->data, ext);
+		snprintf(result->path, path_size, "%s%s.%s", img->basedir->data, img_name->data, ext);
 	}
 
-	return file;
+	*file = result;
+	return true;
 }
 
 SFDO_API void sfdo_icon_file_destroy(struct sfdo_icon_file *file) {
@@ -258,15 +251,11 @@ SFDO_API void sfdo_icon_file_destroy(struct sfdo_icon_file *file) {
 		return;
 	}
 
-	assert(file != sfdo_icon_file_none);
-
 	free(file->path);
 	free(file);
 }
 
 SFDO_API const char *sfdo_icon_file_get_path(struct sfdo_icon_file *file, size_t *len) {
-	assert(file != &file_none);
-
 	if (len != NULL) {
 		*len = file->path_len;
 	}
@@ -274,7 +263,5 @@ SFDO_API const char *sfdo_icon_file_get_path(struct sfdo_icon_file *file, size_t
 }
 
 SFDO_API enum sfdo_icon_file_format sfdo_icon_file_get_format(struct sfdo_icon_file *file) {
-	assert(file != &file_none);
-
 	return file->format;
 }
