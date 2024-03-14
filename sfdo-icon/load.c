@@ -423,8 +423,11 @@ static bool load_node(struct sfdo_icon_loader *loader, struct sfdo_icon_schedule
 	}
 
 	struct sfdo_desktop_file_error desktop_file_error;
-	if (!sfdo_desktop_file_load(
-				fp, &desktop_file_error, NULL, df_group_handler, loader, df_options)) {
+	bool load_ok = sfdo_desktop_file_load(
+			fp, &desktop_file_error, NULL, df_group_handler, loader, df_options);
+	fclose(fp);
+
+	if (!load_ok) {
 		if (desktop_file_error.code != SFDO_DESKTOP_FILE_ERROR_USER) {
 			logger_write(logger, SFDO_LOG_LEVEL_ERROR, "%d:%d: %s", desktop_file_error.line,
 					desktop_file_error.column,
