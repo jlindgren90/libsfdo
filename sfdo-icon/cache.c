@@ -240,6 +240,10 @@ err_fd:
 }
 
 void icon_cache_destroy(struct sfdo_icon_cache *cache) {
+	if (cache == NULL) {
+		return;
+	}
+
 	munmap(cache->data, cache->size);
 	free(cache->dirs);
 	free(cache->images);

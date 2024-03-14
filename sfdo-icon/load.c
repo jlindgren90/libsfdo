@@ -365,6 +365,10 @@ static struct sfdo_icon_theme_node *node_create(const char *name, size_t name_le
 }
 
 static void node_destroy(struct sfdo_icon_theme_node *node) {
+	if (node == NULL) {
+		return;
+	}
+
 	icon_state_finish(&node->state);
 	free(node->subdirs);
 	free(node);

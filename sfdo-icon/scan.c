@@ -280,9 +280,7 @@ static bool rescan_node(struct sfdo_icon_theme_node *node, struct sfdo_icon_them
 end:
 	for (size_t basedir_i = 0; basedir_i < theme->n_basedirs; basedir_i++) {
 		struct sfdo_icon_cache *cache_file = cache_files[basedir_i];
-		if (cache_file != NULL) {
-			icon_cache_destroy(cache_file);
-		}
+		icon_cache_destroy(cache_file);
 	}
 	free(cache_files);
 
