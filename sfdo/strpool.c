@@ -12,22 +12,17 @@ struct sfdo_strpool_chunk {
 #define CHUNK_MIN_SIZE (4096 - sizeof(struct sfdo_strpool_chunk) - 8)
 
 char *sfdo_strpool_add(struct sfdo_strpool *pool, const char *data, size_t len) {
-	return sfdo_strpool_add_with_cap(pool, data, len, len);
-}
-
-char *sfdo_strpool_add_with_cap(
-		struct sfdo_strpool *pool, const char *data, size_t len, size_t cap) {
-	++cap; // Include the null terminator
+	++len; // Include the null terminator
 	char *out = NULL;
-	if (cap > pool->n_free) {
-		size_t data_size = cap > CHUNK_MIN_SIZE ? cap : CHUNK_MIN_SIZE;
+	if (len > pool->n_free) {
+		size_t data_size = len > CHUNK_MIN_SIZE ? len : CHUNK_MIN_SIZE;
 
 		struct sfdo_strpool_chunk *chunk = malloc(sizeof(*chunk) + data_size);
 		if (chunk == NULL) {
 			return NULL;
 		}
 
-		size_t chunk_nfree = data_size - cap;
+		size_t chunk_nfree = data_size - len;
 		if (chunk_nfree < pool->n_free) {
 			// Put the new chunk after head
 			assert(pool->chunks != NULL);
@@ -44,11 +39,11 @@ char *sfdo_strpool_add_with_cap(
 	} else {
 		// If there's free space, the total size is CHUNK_MIN_SIZE
 		char *start = pool->chunks->data + CHUNK_MIN_SIZE - pool->n_free;
-		pool->n_free -= cap;
+		pool->n_free -= len;
 		out = start;
 	}
 	memcpy(out, data, len);
-	memset(out + len, '\0', cap - len);
+	out[len - 1] = '\0';
 	return out;
 }
 

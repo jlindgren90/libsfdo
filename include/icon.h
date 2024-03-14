@@ -74,10 +74,12 @@ struct sfdo_icon_theme {
 	struct sfdo_icon_ctx *ctx;
 
 	struct sfdo_icon_theme_node *nodes;
-
 	struct sfdo_strpool strings;
+
 	struct sfdo_string *basedirs;
 	size_t n_basedirs;
+	char *basedirs_mem;
+
 	struct sfdo_icon_state state;
 
 	struct timespec scan_time;
@@ -90,6 +92,7 @@ struct sfdo_icon_scanner {
 	struct sfdo_icon_state state;
 
 	size_t images_len, images_cap;
+	// Per-directory
 	struct sfdo_hashmap image_set; // sfdo_icon_scanner_image
 };
 

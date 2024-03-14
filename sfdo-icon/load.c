@@ -7,6 +7,7 @@
 #include "api.h"
 #include "hash.h"
 #include "icon.h"
+#include "membuild.h"
 #include "path.h"
 #include "striter.h"
 #include "strpool.h"
@@ -527,37 +528,50 @@ static struct sfdo_icon_theme *theme_create(
 		goto err_basedirs;
 	}
 
-	sfdo_strpool_init(&theme->strings);
+	size_t mem_size = 0;
+	for (size_t i = 0; i < n_basedirs; i++) {
+		const struct sfdo_string *dir = &basedirs[i];
+		mem_size += dir->len + 1;
+		if (sfdo_path_needs_extra_slash(dir->data, dir->len)) {
+			++mem_size;
+		}
+	}
+
+	struct sfdo_membuild mem_buf;
+	if (!sfdo_membuild_setup(&mem_buf, mem_size)) {
+		goto err_membuild;
+	}
 
 	for (size_t i = 0; i < n_basedirs; i++) {
 		const struct sfdo_string *src = &basedirs[i];
 		struct sfdo_string *dst = &theme->basedirs[i];
-
 		size_t dst_len = src->len;
+
+		dst->data = mem_buf.data + mem_buf.len;
+		sfdo_membuild_add(&mem_buf, src->data, src->len, NULL);
 		if (sfdo_path_needs_extra_slash(src->data, src->len)) {
 			++dst_len;
+			sfdo_membuild_add(&mem_buf, "/", 1, NULL);
 		}
-		char *data = sfdo_strpool_add_with_cap(&theme->strings, src->data, src->len, dst_len);
-		if (data == NULL) {
-			goto err_strings;
-		}
-		data[dst_len - 1] = '/';
-
-		dst->data = data;
+		sfdo_membuild_add(&mem_buf, "", 1, NULL);
 		dst->len = dst_len;
 	}
+
+	theme->basedirs_mem = mem_buf.data;
+	assert(mem_buf.len == mem_size);
 
 	if (!icon_state_init(&theme->state, n_basedirs)) {
 		goto err_icon_state;
 	}
 
 	sfdo_strbuild_init(&theme->path_buf);
+	sfdo_strpool_init(&theme->strings);
 
 	return theme;
 
 err_icon_state:
-err_strings:
-	sfdo_strpool_finish(&theme->strings);
+	free(theme->basedirs_mem);
+err_membuild:
 	free(theme->basedirs);
 err_basedirs:
 	free(theme);
@@ -607,10 +621,11 @@ SFDO_API void sfdo_icon_theme_destroy(struct sfdo_icon_theme *theme) {
 		node = next;
 	}
 
-	sfdo_strpool_finish(&theme->strings);
 	icon_state_finish(&theme->state);
 	sfdo_strbuild_finish(&theme->path_buf);
+	sfdo_strpool_finish(&theme->strings);
 
+	free(theme->basedirs_mem);
 	free(theme->basedirs);
 
 	free(theme);
