@@ -49,11 +49,11 @@ void sfdo_icon_theme_destroy(struct sfdo_icon_theme *theme);
 
 bool sfdo_icon_theme_rescan(struct sfdo_icon_theme *theme);
 
-struct sfdo_icon_file *sfdo_icon_theme_lookup(
-		struct sfdo_icon_theme *theme, const char *name, int size, int scale, int options);
+struct sfdo_icon_file *sfdo_icon_theme_lookup(struct sfdo_icon_theme *theme, const char *name,
+		size_t name_len, int size, int scale, int options);
 
 struct sfdo_icon_file *sfdo_icon_theme_lookup_best(struct sfdo_icon_theme *theme,
-		const char *const *names, size_t n_names, int size, int scale, int options);
+		const struct sfdo_string *names, size_t n_names, int size, int scale, int options);
 
 void sfdo_icon_file_destroy(struct sfdo_icon_file *file);
 

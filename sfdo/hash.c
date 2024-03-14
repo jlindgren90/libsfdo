@@ -4,11 +4,11 @@
 
 #include "hash.h"
 
-static uint32_t hash_str(const char *s) {
+static uint32_t hash_str(const char *s, size_t len) {
 	// FNV-1a, 32 bit
 	uint32_t h = 0x811c9dc5;
-	while (*(s++) != '\0') {
-		uint32_t c = (uint32_t)*s;
+	for (size_t i = 0; i < len; i++) {
+		uint32_t c = (uint32_t)s[i];
 		h = (h ^ c) * 0x01000193;
 	}
 	return h;
@@ -31,15 +31,16 @@ void sfdo_hashmap_clear(struct sfdo_hashmap *map) {
 	map->len = map->cap = 0;
 }
 
-void *sfdo_hashmap_get(struct sfdo_hashmap *map, const char *key, bool add) {
-	uint32_t hash = hash_str(key);
+void *sfdo_hashmap_get(struct sfdo_hashmap *map, const char *key, size_t key_len, bool add) {
+	uint32_t hash = hash_str(key, key_len);
 	if (map->len > 0) {
 		for (size_t i = hash % map->cap;; i = (i + 1) % map->cap) {
 			struct sfdo_hashmap_entry *entry =
 					(struct sfdo_hashmap_entry *)&map->mem[map->entry_size * i];
 			if (entry->key == NULL) {
 				break;
-			} else if (entry->hash == hash && (entry->key == key || strcmp(entry->key, key) == 0)) {
+			} else if (entry->hash == hash && entry->key_len == key_len &&
+					(entry->key == key || memcmp(entry->key, key, key_len) == 0)) {
 				return entry;
 			}
 		}
@@ -79,6 +80,7 @@ void *sfdo_hashmap_get(struct sfdo_hashmap *map, const char *key, bool add) {
 					(struct sfdo_hashmap_entry *)&map->mem[map->entry_size * i];
 			if (entry->key == NULL) {
 				entry->hash = hash;
+				entry->key_len = key_len;
 				return entry;
 			}
 		}

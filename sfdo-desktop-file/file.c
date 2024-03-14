@@ -7,6 +7,7 @@
 #include "grow.h"
 #include "hash.h"
 #include "membuild.h"
+#include "sfdo-common.h"
 
 #define RUNE_EOF (-1)
 #define RUNE_NONE (-2)
@@ -283,24 +284,23 @@ static bool read_group(struct sfdo_desktop_file_loader *loader) {
 		return false;
 	}
 
-	size_t name_len;
-	if (!terminate_string(loader, &name_len)) {
-		return false;
-	}
-
-	struct sfdo_hashmap_entry *map_entry = sfdo_hashmap_get(&loader->group_set, loader->buf, true);
+	struct sfdo_hashmap_entry *map_entry =
+			sfdo_hashmap_get(&loader->group_set, loader->buf, loader->buf_len, true);
 	if (map_entry == NULL) {
 		set_error_at(loader, SFDO_DESKTOP_FILE_ERROR_OOM, line, column);
 		return false;
 	} else if (map_entry->key == NULL) {
 		struct sfdo_desktop_file_seen_group *seen_group =
-				malloc(sizeof(*seen_group) + loader->buf_len);
+				malloc(sizeof(*seen_group) + loader->buf_len + 1);
 		if (seen_group == NULL) {
 			set_error_at(loader, SFDO_DESKTOP_FILE_ERROR_OOM, line, column);
 			return false;
 		}
 		memcpy(seen_group->name, loader->buf, loader->buf_len);
+		seen_group->name[loader->buf_len] = '\0';
+
 		map_entry->key = seen_group->name;
+
 		seen_group->next = loader->groups;
 		loader->groups = seen_group;
 	} else if (!loader->allow_duplicate_groups) {
@@ -309,7 +309,7 @@ static bool read_group(struct sfdo_desktop_file_loader *loader) {
 	}
 
 	loader->curr_group_name = map_entry->key;
-	loader->curr_group_name_len = name_len;
+	loader->curr_group_name_len = loader->buf_len;
 	loader->curr_group_line = line;
 	loader->curr_group_column = column;
 
@@ -347,22 +347,21 @@ static bool read_entry(struct sfdo_desktop_file_loader *loader) {
 		advance(loader);
 	}
 
-	size_t key_len;
-	if (!terminate_string(loader, &key_len)) {
-		return false;
-	}
-
-	struct sfdo_desktop_file_entry *l_entry = sfdo_hashmap_get(&loader->entries, loader->buf, true);
+	struct sfdo_desktop_file_entry *l_entry =
+			sfdo_hashmap_get(&loader->entries, loader->buf, loader->buf_len, true);
 	if (l_entry == NULL) {
 		set_error_at(loader, SFDO_DESKTOP_FILE_ERROR_OOM, line, column);
 		return false;
 	} else if (l_entry->base.key == NULL) {
-		l_entry->key = strdup(loader->buf);
+		l_entry->key = malloc(loader->buf_len + 1);
 		if (l_entry->key == NULL) {
 			set_error_at(loader, SFDO_DESKTOP_FILE_ERROR_OOM, line, column);
 			return false;
 		}
-		l_entry->key_len = key_len;
+		memcpy(l_entry->key, loader->buf, loader->buf_len);
+		l_entry->key[loader->buf_len] = '\0';
+		l_entry->key_len = loader->buf_len;
+
 		l_entry->base.key = l_entry->key;
 
 		l_entry->line = line;
@@ -490,19 +489,14 @@ static bool read_entry(struct sfdo_desktop_file_loader *loader) {
 	}
 
 	if (overwrite_value) {
-		size_t value_len;
-		if (!terminate_string(loader, &value_len)) {
-			return false;
-		}
-
-		// Use malloc() in case the value has NUL characters (highly unlikely but still)
-		l_entry->value = malloc(value_len + 1);
+		l_entry->value = malloc(loader->buf_len + 1);
 		if (l_entry->value == NULL) {
 			set_error_at(loader, SFDO_DESKTOP_FILE_ERROR_OOM, line, column);
 			return false;
 		}
 		memcpy(l_entry->value, loader->buf, loader->buf_len);
-		l_entry->value_len = value_len;
+		l_entry->value[loader->buf_len] = '\0';
+		l_entry->value_len = loader->buf_len;
 	}
 
 	return true;
@@ -510,7 +504,6 @@ static bool read_entry(struct sfdo_desktop_file_loader *loader) {
 
 static bool end_group(struct sfdo_desktop_file_loader *loader) {
 	if (loader->curr_group_name == NULL) {
-		// TODO: is this required?
 		return true;
 	}
 
@@ -647,9 +640,8 @@ static bool prepare_locales(struct sfdo_desktop_file_loader *loader, const char 
 				str + modifier_i, modifier_len, "", 1, NULL);
 	}
 
-	assert(mem_buf.len == mem_size);
-
 	loader->locale_data = mem_buf.data;
+	assert(mem_buf.len == mem_size);
 
 	return true;
 }
@@ -748,9 +740,12 @@ SFDO_API void sfdo_desktop_file_group_get_location(
 }
 
 SFDO_API struct sfdo_desktop_file_entry *sfdo_desktop_file_group_get_entry(
-		struct sfdo_desktop_file_group *group, const char *key) {
+		struct sfdo_desktop_file_group *group, const char *key, size_t key_len) {
+	if (key_len == SFDO_NT) {
+		key_len = strlen(key);
+	}
 	struct sfdo_desktop_file_loader *loader = group->loader;
-	return sfdo_hashmap_get(&loader->entries, key, false);
+	return sfdo_hashmap_get(&loader->entries, key, key_len, false);
 }
 
 SFDO_API const char *sfdo_desktop_file_entry_get_key(

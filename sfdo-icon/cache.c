@@ -256,7 +256,8 @@ bool icon_cache_scan_dir(struct sfdo_icon_cache *cache, struct sfdo_icon_scanner
 	struct sfdo_icon_cache_dir *dir = NULL;
 	for (size_t i = 0; i < cache->n_dirs; i++) {
 		struct sfdo_icon_cache_dir *curr = &cache->dirs[i];
-		if (subdir->path.len == curr->name_len && strcmp(subdir_data, curr->name) == 0) {
+		if (subdir->path.len == curr->name_len &&
+				memcmp(subdir_data, curr->name, curr->name_len) == 0) {
 			dir = curr;
 			break;
 		}
@@ -269,12 +270,12 @@ bool icon_cache_scan_dir(struct sfdo_icon_cache *cache, struct sfdo_icon_scanner
 	struct sfdo_icon_cache_image *image;
 	for (size_t i = dir->start_i; i != (size_t)-1; i = image->next_i) {
 		image = &cache->images[i];
-		char *owned_name = sfdo_strpool_add(&scanner->state.names, image->name, image->name_len);
-		if (owned_name == NULL) {
-			logger_write_oom(logger);
+		const char *name = icon_scanner_intern_name(scanner, image->name, image->name_len);
+		if (name == NULL) {
 			return false;
 		}
-		if (!icon_scanner_add_image(scanner, basedir, subdir, owned_name, image->formats)) {
+		if (!icon_scanner_add_image(
+					scanner, basedir, subdir, name, image->name_len, image->formats)) {
 			return false;
 		}
 		++n_images;

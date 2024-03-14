@@ -3,6 +3,9 @@
 #include <sfdo-icon.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+
+#define N_NAMES_MAX 16
 
 static void log_handler(enum sfdo_log_level level, const char *fmt, va_list args, void *data) {
 	(void)level;
@@ -59,8 +62,15 @@ int main(int argc, char **argv) {
 	argv += 3;
 	argc -= 3;
 
-	const char **names = (const char **)argv;
 	size_t n_names = (size_t)argc;
+	if (n_names >= N_NAMES_MAX) {
+		n_names = N_NAMES_MAX;
+	}
+	struct sfdo_string names[N_NAMES_MAX];
+	for (size_t i = 0; i < n_names; i++) {
+		names[i].data = argv[i];
+		names[i].len = strlen(argv[i]);
+	}
 
 	bool ok = false;
 

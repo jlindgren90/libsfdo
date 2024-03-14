@@ -74,9 +74,9 @@ static bool curr_is_better(const struct sfdo_icon_image *best, int best_dist,
 }
 
 static const struct sfdo_icon_image *node_lookup_icon(struct sfdo_icon_theme_node *node,
-		const char *name, int size, int scale, int pixel_size, int formats) {
+		const struct sfdo_string *name, int size, int scale, int pixel_size, int formats) {
 	struct sfdo_icon_state *state = &node->state;
-	struct sfdo_icon_image_list *list = sfdo_hashmap_get(&state->map, name, false);
+	struct sfdo_icon_image_list *list = sfdo_hashmap_get(&state->map, name->data, name->len, false);
 	if (list == NULL) {
 		return NULL;
 	}
@@ -109,9 +109,9 @@ static const struct sfdo_icon_image *node_lookup_icon(struct sfdo_icon_theme_nod
 }
 
 static const struct sfdo_icon_image *theme_lookup_fallback_icon(
-		struct sfdo_icon_theme *theme, const char *name, int formats) {
+		struct sfdo_icon_theme *theme, const struct sfdo_string *name, int formats) {
 	struct sfdo_icon_state *state = &theme->state;
-	struct sfdo_icon_image_list *list = sfdo_hashmap_get(&state->map, name, false);
+	struct sfdo_icon_image_list *list = sfdo_hashmap_get(&state->map, name->data, name->len, false);
 	if (list == NULL) {
 		return NULL;
 	}
@@ -127,13 +127,20 @@ static const struct sfdo_icon_image *theme_lookup_fallback_icon(
 	return NULL;
 }
 
-SFDO_API struct sfdo_icon_file *sfdo_icon_theme_lookup(
-		struct sfdo_icon_theme *theme, const char *name, int size, int scale, int options) {
-	return sfdo_icon_theme_lookup_best(theme, &name, 1, size, scale, options);
+SFDO_API struct sfdo_icon_file *sfdo_icon_theme_lookup(struct sfdo_icon_theme *theme,
+		const char *name, size_t name_len, int size, int scale, int options) {
+	if (name_len == SFDO_NT) {
+		name_len = strlen(name);
+	}
+	struct sfdo_string name_str = {
+		.data = name,
+		.len = name_len,
+	};
+	return sfdo_icon_theme_lookup_best(theme, &name_str, 1, size, scale, options);
 }
 
 SFDO_API struct sfdo_icon_file *sfdo_icon_theme_lookup_best(struct sfdo_icon_theme *theme,
-		const char *const *names, size_t n_names, int size, int scale, int options) {
+		const struct sfdo_string *names, size_t n_names, int size, int scale, int options) {
 	struct sfdo_logger *logger = &theme->ctx->logger;
 
 	assert(size > 0);
@@ -154,13 +161,13 @@ SFDO_API struct sfdo_icon_file *sfdo_icon_theme_lookup_best(struct sfdo_icon_the
 	}
 
 	const struct sfdo_icon_image *img = NULL;
-	const char *img_name = NULL;
+	const struct sfdo_string *img_name = NULL;
 
 	struct sfdo_icon_theme_node *node;
 
 	for (node = theme->nodes; node != NULL; node = node->next) {
 		for (size_t i = 0; i < n_names; i++) {
-			const char *name = names[i];
+			const struct sfdo_string *name = &names[i];
 			img = node_lookup_icon(node, name, size, scale, pixel_size, formats);
 			if (img != NULL) {
 				img_name = name;
@@ -170,7 +177,7 @@ SFDO_API struct sfdo_icon_file *sfdo_icon_theme_lookup_best(struct sfdo_icon_the
 	}
 
 	for (size_t i = 0; i < n_names; i++) {
-		const char *name = names[i];
+		const struct sfdo_string *name = &names[i];
 		img = theme_lookup_fallback_icon(theme, name, formats);
 		if (img != NULL) {
 			img_name = name;
@@ -187,10 +194,10 @@ found:
 	if (node != NULL) {
 		// basedir (with slash), node name, slash, subdir, slash, icon name, dot, extension
 		path_len = img->basedir->len + node->name_len + 1 + img->subdir->path.len + 1 +
-				strlen(img_name) + 1 + EXTENSION_LEN;
+				img_name->len + 1 + EXTENSION_LEN;
 	} else {
 		// basedir (with slash), icon name, dot, extension
-		path_len = img->basedir->len + strlen(img_name) + 1 + EXTENSION_LEN;
+		path_len = img->basedir->len + img_name->len + 1 + EXTENSION_LEN;
 	}
 
 	size_t path_size = path_len + 1;
@@ -238,9 +245,9 @@ found:
 
 	if (node != NULL) {
 		snprintf(file->path, path_size, "%s%s/%s/%s.%s", img->basedir->data, node->name,
-				img->subdir->path.data, img_name, ext);
+				img->subdir->path.data, img_name->data, ext);
 	} else {
-		snprintf(file->path, path_size, "%s%s.%s", img->basedir->data, img_name, ext);
+		snprintf(file->path, path_size, "%s%s.%s", img->basedir->data, img_name->data, ext);
 	}
 
 	return file;

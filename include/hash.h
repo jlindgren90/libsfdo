@@ -8,6 +8,7 @@
 struct sfdo_hashmap_entry {
 	uint32_t hash;
 	const char *key; // Borrowed, NULL if empty
+	size_t key_len;
 };
 
 struct sfdo_hashmap {
@@ -23,6 +24,6 @@ void sfdo_hashmap_clear(struct sfdo_hashmap *map);
 
 // Returns a complete entry if it was found, entry with key == NULL if it was just added,
 // NULL otherwise
-void *sfdo_hashmap_get(struct sfdo_hashmap *map, const char *key, bool add);
+void *sfdo_hashmap_get(struct sfdo_hashmap *map, const char *key, size_t key_len, bool add);
 
 #endif

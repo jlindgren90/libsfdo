@@ -54,17 +54,14 @@ static bool walk_dir(struct sfdo_icon_scanner *scanner, DIR *dirp) {
 			continue;
 		}
 
-		// Strip extension
-		name[icon_name_len] = '\0';
-
-		struct sfdo_icon_scanner_image *entry = sfdo_hashmap_get(&scanner->image_set, name, true);
+		struct sfdo_icon_scanner_image *entry =
+				sfdo_hashmap_get(&scanner->subdir_image_set, name, icon_name_len, true);
 		if (entry == NULL) {
 			logger_write_oom(logger);
 			return false;
 		} else if (entry->base.key == NULL) {
-			entry->base.key = sfdo_strpool_add(&scanner->state.names, name, icon_name_len);
+			entry->base.key = icon_scanner_intern_name(scanner, name, icon_name_len);
 			if (entry->base.key == NULL) {
-				logger_write_oom(logger);
 				return false;
 			}
 			entry->formats = 0;
@@ -85,13 +82,15 @@ static bool scanner_init(
 	scanner->logger = logger;
 
 	scanner->images_len = scanner->images_cap = 0;
-	sfdo_hashmap_init(&scanner->image_set, sizeof(struct sfdo_icon_scanner_image));
+	sfdo_hashmap_init(&scanner->image_names, sizeof(struct sfdo_hashmap_entry));
+	sfdo_hashmap_init(&scanner->subdir_image_set, sizeof(struct sfdo_icon_scanner_image));
 
 	return true;
 }
 
 static void scanner_finish(struct sfdo_icon_scanner *scanner) {
-	sfdo_hashmap_finish(&scanner->image_set);
+	sfdo_hashmap_finish(&scanner->image_names);
+	sfdo_hashmap_finish(&scanner->subdir_image_set);
 }
 
 static void scanner_discard_and_finish(struct sfdo_icon_scanner *scanner) {
@@ -106,8 +105,27 @@ static void scanner_commit_and_finish(
 	scanner_finish(scanner);
 }
 
+const char *icon_scanner_intern_name(
+		struct sfdo_icon_scanner *scanner, const char *name, size_t name_len) {
+	struct sfdo_logger *logger = scanner->logger;
+
+	struct sfdo_hashmap_entry *name_entry =
+			sfdo_hashmap_get(&scanner->image_names, name, name_len, true);
+	if (name_entry == NULL) {
+		logger_write_oom(logger);
+		return NULL;
+	} else if (name_entry->key == NULL) {
+		name_entry->key = sfdo_strpool_add(&scanner->state.names, name, name_len);
+		if (name_entry->key == NULL) {
+			logger_write_oom(logger);
+			return NULL;
+		}
+	}
+	return name_entry->key;
+}
+
 bool icon_scanner_add_image(struct sfdo_icon_scanner *scanner, const struct sfdo_string *basedir,
-		const struct sfdo_icon_subdir *subdir, const char *name, int formats) {
+		const struct sfdo_icon_subdir *subdir, const char *name, size_t name_len, int formats) {
 	struct sfdo_logger *logger = scanner->logger;
 
 	struct sfdo_icon_state *state = &scanner->state;
@@ -117,7 +135,7 @@ bool icon_scanner_add_image(struct sfdo_icon_scanner *scanner, const struct sfdo
 		return false;
 	}
 
-	struct sfdo_icon_image_list *image_list = sfdo_hashmap_get(&state->map, name, true);
+	struct sfdo_icon_image_list *image_list = sfdo_hashmap_get(&state->map, name, name_len, true);
 	if (image_list == NULL) {
 		logger_write_oom(logger);
 		return false;
@@ -152,8 +170,8 @@ static bool scan_dir(struct sfdo_icon_scanner *scanner, const char *path,
 		return true;
 	}
 
-	struct sfdo_hashmap *map = &scanner->image_set;
-	sfdo_hashmap_clear(map);
+	struct sfdo_hashmap *image_set = &scanner->subdir_image_set;
+	sfdo_hashmap_clear(image_set);
 
 	bool walk_ok = walk_dir(scanner, dirp);
 	closedir(dirp);
@@ -162,17 +180,18 @@ static bool scan_dir(struct sfdo_icon_scanner *scanner, const char *path,
 		return false;
 	}
 
-	for (size_t i = 0; i < map->cap; i++) {
-		struct sfdo_icon_scanner_image *entry = &((struct sfdo_icon_scanner_image *)map->mem)[i];
+	for (size_t i = 0; i < image_set->cap; i++) {
+		struct sfdo_icon_scanner_image *entry =
+				&((struct sfdo_icon_scanner_image *)image_set->mem)[i];
 		if (entry->base.key != NULL) {
-			if (!icon_scanner_add_image(
-						scanner, basedir, subdir, entry->base.key, entry->formats)) {
+			if (!icon_scanner_add_image(scanner, basedir, subdir, entry->base.key,
+						entry->base.key_len, entry->formats)) {
 				return false;
 			}
 		}
 	}
 
-	logger_write(logger, SFDO_LOG_LEVEL_DEBUG, "Added %zu image(s) from %s", map->len, path);
+	logger_write(logger, SFDO_LOG_LEVEL_DEBUG, "Added %zu image(s) from %s", image_set->len, path);
 
 	return true;
 }

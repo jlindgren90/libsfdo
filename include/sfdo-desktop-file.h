@@ -47,7 +47,7 @@ void sfdo_desktop_file_group_get_location(
 		struct sfdo_desktop_file_group *group, int *line, int *column);
 
 struct sfdo_desktop_file_entry *sfdo_desktop_file_group_get_entry(
-		struct sfdo_desktop_file_group *group, const char *key);
+		struct sfdo_desktop_file_group *group, const char *key, size_t key_len);
 
 const char *sfdo_desktop_file_entry_get_key(struct sfdo_desktop_file_entry *entry, size_t *len);
 

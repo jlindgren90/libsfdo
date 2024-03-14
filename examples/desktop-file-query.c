@@ -7,6 +7,7 @@
 struct query {
 	const char *group_name;
 	const char *key;
+	size_t key_len;
 };
 
 struct ctx {
@@ -23,7 +24,7 @@ static bool start_handler(struct sfdo_desktop_file_group *group, void *data) {
 		struct query *query = &ctx->queries[i];
 		if (strcmp(query->group_name, name) == 0) {
 			struct sfdo_desktop_file_entry *entry =
-					sfdo_desktop_file_group_get_entry(group, query->key);
+					sfdo_desktop_file_group_get_entry(group, query->key, query->key_len);
 			if (entry != NULL) {
 				const char *value = sfdo_desktop_file_entry_get_value(entry, NULL);
 				printf("%s/%s: %s\n", name, query->key, value);
@@ -93,13 +94,13 @@ int main(int argc, char **argv) {
 		char *query_s = argv[i];
 		char *key_p = strchr(query_s, '/');
 		if (key_p == NULL) {
-			printf("hm?\n");
 			die_usage(prog);
 		}
 		*(key_p++) = '\0';
 		struct query *query = &ctx.queries[i];
 		query->group_name = query_s;
 		query->key = key_p;
+		query->key_len = strlen(query->key);
 	}
 
 	struct sfdo_desktop_file_error error;

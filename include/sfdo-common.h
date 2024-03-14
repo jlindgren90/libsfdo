@@ -4,6 +4,8 @@
 #include <stdarg.h>
 #include <stddef.h>
 
+#define SFDO_NT ((size_t)-1)
+
 struct sfdo_string {
 	const char *data; // Null-terminated
 	size_t len; // In octets, excluding the null terminator

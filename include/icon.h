@@ -92,8 +92,9 @@ struct sfdo_icon_scanner {
 	struct sfdo_icon_state state;
 
 	size_t images_len, images_cap;
-	// Per-directory
-	struct sfdo_hashmap image_set; // sfdo_icon_scanner_image
+
+	struct sfdo_hashmap image_names; // sfdo_hashmap_entry
+	struct sfdo_hashmap subdir_image_set; // sfdo_icon_scanner_image
 };
 
 bool icon_state_init(struct sfdo_icon_state *state, size_t n_dirs);
@@ -106,8 +107,11 @@ void icon_cache_destroy(struct sfdo_icon_cache *cache);
 bool icon_cache_scan_dir(struct sfdo_icon_cache *cache, struct sfdo_icon_scanner *scanner,
 		const struct sfdo_string *basedir, const struct sfdo_icon_subdir *subdir);
 
+const char *icon_scanner_intern_name(
+		struct sfdo_icon_scanner *scanner, const char *name, size_t name_len);
+
 bool icon_scanner_add_image(struct sfdo_icon_scanner *scanner, const struct sfdo_string *basedir,
-		const struct sfdo_icon_subdir *subdir, const char *name, int formats);
+		const struct sfdo_icon_subdir *subdir, const char *name, size_t name_len, int formats);
 
 bool icon_theme_maybe_rescan(struct sfdo_icon_theme *theme);
 
