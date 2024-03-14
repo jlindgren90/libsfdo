@@ -157,6 +157,9 @@ static bool peek(struct sfdo_desktop_file_loader *loader) {
 			loader->rune_len != exp_len) {
 		set_error(loader, SFDO_DESKTOP_FILE_ERROR_UTF8);
 		return false;
+	} else if (rune == 0) {
+		set_error(loader, SFDO_DESKTOP_FILE_ERROR_NT);
+		return false;
 	}
 
 	loader->rune = rune;
@@ -701,6 +704,8 @@ SFDO_API const char *sfdo_desktop_file_error_code_get_description(
 		return "Success";
 	case SFDO_DESKTOP_FILE_ERROR_IO:
 		return "Input error";
+	case SFDO_DESKTOP_FILE_ERROR_NT:
+		return "Unexpected NUL";
 	case SFDO_DESKTOP_FILE_ERROR_UTF8:
 		return "Invalid UTF-8 sequence";
 	case SFDO_DESKTOP_FILE_ERROR_OOM:
