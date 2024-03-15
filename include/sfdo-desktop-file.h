@@ -16,13 +16,14 @@ enum sfdo_desktop_file_error_code {
 	SFDO_DESKTOP_FILE_ERROR_DUPLICATE_GROUP,
 	SFDO_DESKTOP_FILE_ERROR_DUPLICATE_KEY,
 	SFDO_DESKTOP_FILE_ERROR_NO_DEFAULT_VALUE,
-	SFDO_DESKTOP_FILE_ERROR_USER,
 };
 
 struct sfdo_desktop_file_error {
 	enum sfdo_desktop_file_error_code code;
 	int line, column;
 };
+
+struct sfdo_desktop_file_document;
 
 struct sfdo_desktop_file_group;
 
@@ -37,10 +38,18 @@ enum sfdo_desktop_file_load_options {
 typedef bool (*sfdo_desktop_file_group_handler_t)(
 		struct sfdo_desktop_file_group *group, void *data);
 
-bool sfdo_desktop_file_load(FILE *fp, struct sfdo_desktop_file_error *error, const char *locale,
-		sfdo_desktop_file_group_handler_t group_handler, void *data, int options);
+struct sfdo_desktop_file_document *sfdo_desktop_file_document_load(
+		FILE *fp, const char *locale, int options, struct sfdo_desktop_file_error *error);
+
+void sfdo_desktop_file_document_destroy(struct sfdo_desktop_file_document *document);
+
+struct sfdo_desktop_file_group *sfdo_desktop_file_document_get_groups(
+		struct sfdo_desktop_file_document *document);
 
 const char *sfdo_desktop_file_error_code_get_description(enum sfdo_desktop_file_error_code code);
+
+struct sfdo_desktop_file_group *sfdo_desktop_file_group_get_next(
+		struct sfdo_desktop_file_group *group);
 
 const char *sfdo_desktop_file_group_get_name(struct sfdo_desktop_file_group *group, size_t *len);
 

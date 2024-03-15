@@ -35,15 +35,6 @@ struct sfdo_icon_loader {
 	struct sfdo_icon_scheduled_node *curr_node;
 
 	bool relaxed;
-
-	// Per-node
-
-	bool seen_icon_theme_group;
-
-	struct sfdo_icon_subdir *subdirs; // Owned, moved into a node after loading
-	size_t n_subdirs;
-	size_t subdir_i;
-	struct sfdo_hashmap subdir_group_set; // sfdo_icon_subdir_group
 };
 
 // Returns 0 on error
@@ -126,8 +117,8 @@ static bool schedule_node_list(struct sfdo_icon_loader *loader, const char *list
 	return true;
 }
 
-static bool add_directory_list(
-		struct sfdo_icon_loader *loader, const char *list, int group_line, int group_column) {
+static bool add_directory_list(struct sfdo_icon_loader *loader, const char *list,
+		struct sfdo_hashmap *subdir_set, int group_line, int group_column) {
 	struct sfdo_icon_theme *theme = loader->theme;
 	struct sfdo_logger *logger = &theme->ctx->logger;
 
@@ -138,8 +129,7 @@ static bool add_directory_list(
 			continue;
 		}
 		const char *dir = list + dir_start;
-		struct sfdo_hashmap_entry *entry =
-				sfdo_hashmap_get(&loader->subdir_group_set, dir, dir_len, true);
+		struct sfdo_hashmap_entry *entry = sfdo_hashmap_get(subdir_set, dir, dir_len, true);
 		if (entry == NULL) {
 			logger_write_oom(logger);
 			return false;
@@ -157,210 +147,232 @@ static bool add_directory_list(
 			logger_write_oom(logger);
 			return false;
 		}
-		++loader->n_subdirs;
 	}
 
 	return true;
 }
 
-static bool df_group_handler(struct sfdo_desktop_file_group *group, void *data) {
-	struct sfdo_icon_loader *loader = data;
+static struct sfdo_icon_theme_node *node_load(struct sfdo_icon_loader *loader,
+		struct sfdo_desktop_file_document *doc, const char *node_name, size_t node_name_len) {
 	struct sfdo_icon_theme *theme = loader->theme;
 	struct sfdo_logger *logger = &theme->ctx->logger;
 
+	const char *group_name;
 	size_t group_name_len;
-	const char *group_name = sfdo_desktop_file_group_get_name(group, &group_name_len);
+	int group_line, group_column;
 
 	struct sfdo_desktop_file_entry *entry;
-	const char *value;
-
-	int group_line, group_column;
-	sfdo_desktop_file_group_get_location(group, &group_line, &group_column);
-
 	int entry_line, entry_column;
 
-	if (strcmp(group_name, "Icon Theme") == 0) {
-		loader->seen_icon_theme_group = true;
+	const char *value;
 
-		if ((entry = sfdo_desktop_file_group_get_entry(group, "Inherits", 8)) != NULL) {
-			if (!schedule_node_list(loader, sfdo_desktop_file_entry_get_value(entry, NULL))) {
-				return false;
-			}
-		}
-
-		if ((entry = sfdo_desktop_file_group_get_entry(group, "Directories", 11)) != NULL) {
-			value = sfdo_desktop_file_entry_get_value(entry, NULL);
-			if (!add_directory_list(loader, value, group_line, group_column)) {
-				return false;
-			}
-		} else {
-			logger_write(logger, SFDO_LOG_LEVEL_ERROR, "%d:%d: Directories is unset", group_line,
-					group_column);
-			return false;
-		}
-
-		if ((entry = sfdo_desktop_file_group_get_entry(group, "ScaledDirectories", 17)) != NULL) {
-			value = sfdo_desktop_file_entry_get_value(entry, NULL);
-			if (!add_directory_list(loader, value, group_line, group_column)) {
-				return false;
-			}
-		}
-
-		if (loader->n_subdirs > 0) {
-			loader->subdirs = calloc(loader->n_subdirs, sizeof(*loader->subdirs));
-			if (loader->subdirs == NULL) {
-				logger_write_oom(logger);
-				return false;
-			}
-		}
-
-		return true;
+	struct sfdo_desktop_file_group *group = sfdo_desktop_file_document_get_groups(doc);
+	if (group == NULL) {
+		logger_write(logger, SFDO_LOG_LEVEL_ERROR, "Expected \"Icon Theme\" group");
+		return NULL;
 	}
 
-	if (!loader->seen_icon_theme_group) {
+	sfdo_desktop_file_group_get_location(group, &group_line, &group_column);
+
+	group_name = sfdo_desktop_file_group_get_name(group, &group_name_len);
+	if (strcmp(group_name, "Icon Theme") != 0) {
 		logger_write(logger, SFDO_LOG_LEVEL_ERROR,
 				"%d:%d: expected \"Icon Theme\" group, got \"%s\"", group_line, group_column,
 				group_name);
-		return false;
+		return NULL;
 	}
 
-	if (strncmp(group_name, "X-", 2) == 0) {
-		// Ignore all entries
-		return true;
+	if ((entry = sfdo_desktop_file_group_get_entry(group, "Inherits", 8)) != NULL) {
+		if (!schedule_node_list(loader, sfdo_desktop_file_entry_get_value(entry, NULL))) {
+			return NULL;
+		}
 	}
 
-	struct sfdo_icon_subdir_group *subdir_group =
-			sfdo_hashmap_get(&loader->subdir_group_set, group_name, group_name_len, false);
-	if (subdir_group == NULL) {
-		// Unknown group, ignore all entries
-		return true;
-	} else if (subdir_group->seen) {
-		logger_write(logger, loader->relaxed ? SFDO_LOG_LEVEL_INFO : SFDO_LOG_LEVEL_ERROR,
-				"%d:%d: duplicate directory group \"%s\"", group_line, group_column, group_name);
-		return loader->relaxed;
-	}
+	struct sfdo_icon_theme_node *node = NULL;
 
-	subdir_group->seen = true;
+	struct sfdo_hashmap subdir_set;
+	sfdo_hashmap_init(&subdir_set, sizeof(struct sfdo_icon_subdir_group));
 
-	assert(loader->subdir_i < loader->n_subdirs);
-	struct sfdo_icon_subdir *subdir = &loader->subdirs[loader->subdir_i++];
-
-	subdir->path.data = subdir_group->base.key;
-	subdir->path.len = group_name_len;
-
-	if ((entry = sfdo_desktop_file_group_get_entry(group, "Size", 4)) != NULL) {
+	if ((entry = sfdo_desktop_file_group_get_entry(group, "Directories", 11)) != NULL) {
 		value = sfdo_desktop_file_entry_get_value(entry, NULL);
-		if ((subdir->size = parse_positive_integer(value)) == 0) {
-			goto err_value;
+		if (!add_directory_list(loader, value, &subdir_set, group_line, group_column)) {
+			goto err_initial;
 		}
 	} else {
-		logger_write(
-				logger, SFDO_LOG_LEVEL_ERROR, "%d:%d: Size is unset", group_line, group_column);
-		return false;
+		logger_write(logger, SFDO_LOG_LEVEL_ERROR, "%d:%d: Directories is unset", group_line,
+				group_column);
+		goto err_initial;
 	}
 
-	subdir->type = SFDO_ICON_SUBDIR_THRESHOLD;
-	if ((entry = sfdo_desktop_file_group_get_entry(group, "Type", 4)) != NULL) {
+	if ((entry = sfdo_desktop_file_group_get_entry(group, "ScaledDirectories", 17)) != NULL) {
 		value = sfdo_desktop_file_entry_get_value(entry, NULL);
-		if (strcmp(value, "Fixed") == 0) {
-			subdir->type = SFDO_ICON_SUBDIR_FIXED;
-		} else if (strcmp(value, "Scalable") == 0) {
-			subdir->type = SFDO_ICON_SUBDIR_SCALABLE;
-		} else if (strcmp(value, "Threshold") == 0) {
-			subdir->type = SFDO_ICON_SUBDIR_THRESHOLD;
+		if (!add_directory_list(loader, value, &subdir_set, group_line, group_column)) {
+			goto err_initial;
+		}
+	}
+
+	node = calloc(1, sizeof(*node));
+	if (node == NULL) {
+		logger_write_oom(logger);
+		goto err_node;
+	}
+	node->n_subdirs = subdir_set.len;
+	if (node->n_subdirs > 0) {
+		node->subdirs = calloc(node->n_subdirs, sizeof(*node->subdirs));
+		if (node->subdirs == NULL) {
+			logger_write_oom(logger);
+			goto err_node_subdirs;
+		}
+	}
+
+	if (!icon_state_init(&node->state, (node->n_subdirs + 1) * theme->n_basedirs)) {
+		logger_write_oom(logger);
+		goto err_node_state;
+	}
+
+	node->name = node_name;
+	node->name_len = node_name_len;
+
+	size_t subdir_i = 0;
+
+	for (group = sfdo_desktop_file_group_get_next(group); group != NULL;
+			group = sfdo_desktop_file_group_get_next(group)) {
+		group_name = sfdo_desktop_file_group_get_name(group, &group_name_len);
+		if (strncmp(group_name, "X-", 2) == 0) {
+			// Extension group
+			continue;
+		}
+
+		struct sfdo_icon_subdir_group *subdir_group =
+				sfdo_hashmap_get(&subdir_set, group_name, group_name_len, false);
+		if (subdir_group == NULL) {
+			// Unknown group
+			continue;
+		}
+
+		sfdo_desktop_file_group_get_location(group, &group_line, &group_column);
+
+		if (subdir_group->seen) {
+			assert(loader->relaxed);
+			logger_write(logger, SFDO_LOG_LEVEL_INFO, "%d:%d: duplicate directory group \"%s\"",
+					group_line, group_column, group_name);
+			continue;
+		}
+
+		subdir_group->seen = true;
+
+		assert(subdir_i < node->n_subdirs);
+		struct sfdo_icon_subdir *subdir = &node->subdirs[subdir_i++];
+
+		subdir->path.data = subdir_group->base.key;
+		subdir->path.len = group_name_len;
+
+		if ((entry = sfdo_desktop_file_group_get_entry(group, "Size", 4)) != NULL) {
+			value = sfdo_desktop_file_entry_get_value(entry, NULL);
+			if ((subdir->size = parse_positive_integer(value)) == 0) {
+				goto err_dir_value;
+			}
 		} else {
-			sfdo_desktop_file_entry_get_location(entry, &entry_line, &entry_column);
-			logger_write(logger, loader->relaxed ? SFDO_LOG_LEVEL_INFO : SFDO_LOG_LEVEL_ERROR,
-					"%d:%d: invalid Type \"%s\"", entry_line, entry_column, value);
-			if (!loader->relaxed) {
-				return false;
+			logger_write(
+					logger, SFDO_LOG_LEVEL_ERROR, "%d:%d: Size is unset", group_line, group_column);
+			goto err_dir;
+		}
+
+		subdir->type = SFDO_ICON_SUBDIR_THRESHOLD;
+		if ((entry = sfdo_desktop_file_group_get_entry(group, "Type", 4)) != NULL) {
+			value = sfdo_desktop_file_entry_get_value(entry, NULL);
+			if (strcmp(value, "Fixed") == 0) {
+				subdir->type = SFDO_ICON_SUBDIR_FIXED;
+			} else if (strcmp(value, "Scalable") == 0) {
+				subdir->type = SFDO_ICON_SUBDIR_SCALABLE;
+			} else if (strcmp(value, "Threshold") == 0) {
+				subdir->type = SFDO_ICON_SUBDIR_THRESHOLD;
+			} else {
+				sfdo_desktop_file_entry_get_location(entry, &entry_line, &entry_column);
+				logger_write(logger, loader->relaxed ? SFDO_LOG_LEVEL_INFO : SFDO_LOG_LEVEL_ERROR,
+						"%d:%d: invalid Type \"%s\"", entry_line, entry_column, value);
+				if (!loader->relaxed) {
+					goto err_dir;
+				}
 			}
 		}
+
+		if ((entry = sfdo_desktop_file_group_get_entry(group, "Scale", 5)) != NULL) {
+			value = sfdo_desktop_file_entry_get_value(entry, NULL);
+			if ((subdir->scale = parse_positive_integer(value)) == 0) {
+				goto err_dir_value;
+			}
+		} else {
+			subdir->scale = 1;
+		}
+
+		subdir->min_pixel_size = subdir->size;
+		subdir->max_pixel_size = subdir->size;
+		int threshold = 2;
+
+		switch (subdir->type) {
+		case SFDO_ICON_SUBDIR_FIXED:
+			subdir->min_pixel_size = subdir->max_pixel_size = subdir->size;
+			break;
+		case SFDO_ICON_SUBDIR_SCALABLE:
+			if ((entry = sfdo_desktop_file_group_get_entry(group, "MinSize", 7)) != NULL) {
+				value = sfdo_desktop_file_entry_get_value(entry, NULL);
+				if ((subdir->min_pixel_size = parse_positive_integer(value)) == 0) {
+					goto err_dir_value;
+				}
+			}
+			if ((entry = sfdo_desktop_file_group_get_entry(group, "MaxSize", 7)) != NULL) {
+				value = sfdo_desktop_file_entry_get_value(entry, NULL);
+				if ((subdir->max_pixel_size = parse_positive_integer(value)) == 0) {
+					goto err_dir_value;
+				}
+			}
+			if (subdir->min_pixel_size > subdir->max_pixel_size) {
+				logger_write(logger, SFDO_LOG_LEVEL_ERROR,
+						"%d:%d: invalid size range: minimum %d, maximum %d", group_line,
+						group_column, subdir->min_pixel_size, subdir->max_pixel_size);
+				goto err_dir;
+			}
+			break;
+		case SFDO_ICON_SUBDIR_THRESHOLD:
+			if ((entry = sfdo_desktop_file_group_get_entry(group, "Threshold", 9)) != NULL) {
+				value = sfdo_desktop_file_entry_get_value(entry, NULL);
+				if ((threshold = parse_positive_integer(value)) == 0) {
+					goto err_dir_value;
+				}
+			}
+			// SPEC: the specification incorrectly suggests using MinSize/MaxSize for distance
+			// calculation even for Threshold subdirectories
+			subdir->min_pixel_size = subdir->size - threshold;
+			subdir->max_pixel_size = subdir->size + threshold;
+			break;
+		}
+
+		subdir->min_pixel_size *= subdir->scale;
+		subdir->max_pixel_size *= subdir->scale;
 	}
 
-	if ((entry = sfdo_desktop_file_group_get_entry(group, "Scale", 5)) != NULL) {
-		value = sfdo_desktop_file_entry_get_value(entry, NULL);
-		if ((subdir->scale = parse_positive_integer(value)) == 0) {
-			goto err_value;
-		}
-	} else {
-		subdir->scale = 1;
-	}
+	goto end;
 
-	subdir->min_pixel_size = subdir->size;
-	subdir->max_pixel_size = subdir->size;
-	int threshold = 2;
-
-	switch (subdir->type) {
-	case SFDO_ICON_SUBDIR_FIXED:
-		subdir->min_pixel_size = subdir->max_pixel_size = subdir->size;
-		break;
-	case SFDO_ICON_SUBDIR_SCALABLE:
-		if ((entry = sfdo_desktop_file_group_get_entry(group, "MinSize", 7)) != NULL) {
-			value = sfdo_desktop_file_entry_get_value(entry, NULL);
-			if ((subdir->min_pixel_size = parse_positive_integer(value)) == 0) {
-				goto err_value;
-			}
-		}
-		if ((entry = sfdo_desktop_file_group_get_entry(group, "MaxSize", 7)) != NULL) {
-			value = sfdo_desktop_file_entry_get_value(entry, NULL);
-			if ((subdir->max_pixel_size = parse_positive_integer(value)) == 0) {
-				goto err_value;
-			}
-		}
-		if (subdir->min_pixel_size > subdir->max_pixel_size) {
-			logger_write(logger, SFDO_LOG_LEVEL_ERROR,
-					"%d:%d: invalid size range: minimum %d, maximum %d", group_line, group_column,
-					subdir->min_pixel_size, subdir->max_pixel_size);
-			return false;
-		}
-		break;
-	case SFDO_ICON_SUBDIR_THRESHOLD:
-		if ((entry = sfdo_desktop_file_group_get_entry(group, "Threshold", 9)) != NULL) {
-			value = sfdo_desktop_file_entry_get_value(entry, NULL);
-			if ((threshold = parse_positive_integer(value)) == 0) {
-				goto err_value;
-			}
-		}
-		// SPEC: the specification incorrectly suggests using MinSize/MaxSize for distance
-		// calculation even for Threshold subdirectories
-		subdir->min_pixel_size = subdir->size - threshold;
-		subdir->max_pixel_size = subdir->size + threshold;
-		break;
-	}
-
-	subdir->min_pixel_size *= subdir->scale;
-	subdir->max_pixel_size *= subdir->scale;
-
-	return true;
-
-err_value:
+err_dir_value:
 	assert(entry != NULL);
 	const char *key = sfdo_desktop_file_entry_get_key(entry, NULL);
 	sfdo_desktop_file_entry_get_location(entry, &entry_line, &entry_column);
 	logger_write(logger, SFDO_LOG_LEVEL_ERROR, "%d:%d: invalid %s value \"%s\"", entry_line,
 			entry_column, key, value);
-	return false;
-}
 
-static struct sfdo_icon_theme_node *node_create(const char *name, size_t name_len,
-		struct sfdo_icon_subdir *subdirs, size_t n_subdirs, size_t n_basedirs) {
-	struct sfdo_icon_theme_node *node = calloc(1, sizeof(*node));
-	if (node == NULL) {
-		return NULL;
-	}
+err_dir:
+	icon_state_finish(&node->state);
+err_node_state:
+	free(node->subdirs);
+err_node_subdirs:
+	free(node);
+err_node:
+	node = NULL;
+err_initial:
 
-	if (!icon_state_init(&node->state, (n_subdirs + 1) * n_basedirs)) {
-		free(node);
-		return NULL;
-	}
-
-	node->name = name;
-	node->name_len = name_len;
-
-	node->subdirs = subdirs;
-	node->n_subdirs = n_subdirs;
-
+end:
+	sfdo_hashmap_finish(&subdir_set);
 	return node;
 }
 
@@ -408,53 +420,30 @@ static bool load_node(struct sfdo_icon_loader *loader, struct sfdo_icon_schedule
 		return true;
 	}
 
-	loader->seen_icon_theme_group = false;
-
-	loader->subdirs = NULL;
-	loader->n_subdirs = 0;
-	loader->subdir_i = 0;
-
-	sfdo_hashmap_clear(&loader->subdir_group_set);
-
 	int df_options = SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT;
 	if (loader->relaxed) {
 		df_options |= SFDO_DESKTOP_FILE_LOAD_ALLOW_DUPLICATE_GROUPS;
 	}
 
 	struct sfdo_desktop_file_error desktop_file_error;
-	bool load_ok = sfdo_desktop_file_load(
-			fp, &desktop_file_error, NULL, df_group_handler, loader, df_options);
+	struct sfdo_desktop_file_document *doc =
+			sfdo_desktop_file_document_load(fp, NULL, df_options, &desktop_file_error);
 	fclose(fp);
 
-	if (!load_ok) {
-		if (desktop_file_error.code != SFDO_DESKTOP_FILE_ERROR_USER) {
-			logger_write(logger, SFDO_LOG_LEVEL_ERROR, "%d:%d: %s", desktop_file_error.line,
-					desktop_file_error.column,
-					sfdo_desktop_file_error_code_get_description(desktop_file_error.code));
+	if (doc != NULL) {
+		struct sfdo_icon_theme_node *node = node_load(loader, doc, s_node->name, s_node->name_len);
+		sfdo_desktop_file_document_destroy(doc);
+		if (node != NULL) {
+			*out = node;
+			return true;
 		}
-		logger_write(logger, SFDO_LOG_LEVEL_ERROR, "Failed to read the icon theme file for %s",
-				s_node->name);
-		goto err;
+	} else {
+		logger_write(logger, SFDO_LOG_LEVEL_ERROR, "%d:%d: %s", desktop_file_error.line,
+				desktop_file_error.column,
+				sfdo_desktop_file_error_code_get_description(desktop_file_error.code));
 	}
 
-	if (loader->subdir_i != loader->n_subdirs) {
-		logger_write(
-				logger, SFDO_LOG_LEVEL_ERROR, "Not enough directory sections in %s", s_node->name);
-		goto err;
-	}
-
-	struct sfdo_icon_theme_node *node = node_create(
-			s_node->name, s_node->name_len, loader->subdirs, loader->n_subdirs, theme->n_basedirs);
-	if (node == NULL) {
-		logger_write_oom(logger);
-		goto err;
-	}
-
-	*out = node;
-	return true;
-
-err:
-	free(loader->subdirs);
+	logger_write(logger, SFDO_LOG_LEVEL_ERROR, "Failed to load %s", pb->data);
 	return false;
 }
 
@@ -464,7 +453,6 @@ static bool load_theme(struct sfdo_icon_theme *theme, const char *name, int opti
 		.relaxed = (options & SFDO_ICON_THEME_LOAD_OPTION_RELAXED) != 0,
 	};
 	sfdo_hashmap_init(&loader.seen_nodes, sizeof(struct sfdo_hashmap_entry));
-	sfdo_hashmap_init(&loader.subdir_group_set, sizeof(struct sfdo_icon_subdir_group));
 
 	bool ok = false;
 
@@ -499,7 +487,6 @@ static bool load_theme(struct sfdo_icon_theme *theme, const char *name, int opti
 
 end:
 	sfdo_hashmap_finish(&loader.seen_nodes);
-	sfdo_hashmap_finish(&loader.subdir_group_set);
 
 	struct sfdo_icon_scheduled_node *s_node = loader.scheduled_nodes;
 	while (s_node != NULL) {

@@ -10,32 +10,6 @@ struct query {
 	size_t key_len;
 };
 
-struct ctx {
-	struct query *queries;
-	size_t n_queries;
-};
-
-static bool start_handler(struct sfdo_desktop_file_group *group, void *data) {
-	struct ctx *ctx = data;
-
-	const char *name = sfdo_desktop_file_group_get_name(group, NULL);
-
-	for (size_t i = 0; i < ctx->n_queries; i++) {
-		struct query *query = &ctx->queries[i];
-		if (strcmp(query->group_name, name) == 0) {
-			struct sfdo_desktop_file_entry *entry =
-					sfdo_desktop_file_group_get_entry(group, query->key, query->key_len);
-			if (entry != NULL) {
-				const char *value = sfdo_desktop_file_entry_get_value(entry, NULL);
-				printf("%s/%s: %s\n", name, query->key, value);
-				break;
-			}
-		}
-	}
-
-	return true;
-}
-
 static void die_usage(const char *prog) {
 	printf("Usage: %s [-D] [-l locale] <path> [group:key...]\n", prog);
 	exit(1);
@@ -77,43 +51,61 @@ int main(int argc, char **argv) {
 	argv += 1;
 	argc -= 1;
 
-	struct ctx ctx = {
-		.n_queries = (size_t)argc,
-		.queries = NULL,
-	};
+	struct query *queries = NULL;
+	size_t n_queries = (size_t)argc;
 
 	if (argc > 0) {
-		ctx.queries = calloc(ctx.n_queries, sizeof(*ctx.queries));
-		if (ctx.queries == NULL) {
+		queries = calloc(n_queries, sizeof(*queries));
+		if (queries == NULL) {
 			fprintf(stderr, "Memory allocation error\n");
 			return 1;
 		}
 	}
 
-	for (size_t i = 0; i < ctx.n_queries; i++) {
+	for (size_t i = 0; i < n_queries; i++) {
 		char *query_s = argv[i];
 		char *key_p = strchr(query_s, '/');
 		if (key_p == NULL) {
 			die_usage(prog);
 		}
 		*(key_p++) = '\0';
-		struct query *query = &ctx.queries[i];
+		struct query *query = &queries[i];
 		query->group_name = query_s;
 		query->key = key_p;
 		query->key_len = strlen(query->key);
 	}
 
 	struct sfdo_desktop_file_error error;
-	bool ok = sfdo_desktop_file_load(fp, &error, locale, start_handler, &ctx, options);
+	struct sfdo_desktop_file_document *doc =
+			sfdo_desktop_file_document_load(fp, locale, options, &error);
 	fclose(fp);
 
-	free(ctx.queries);
-
-	if (!ok) {
+	if (doc == NULL) {
 		fprintf(stderr, "%d:%d: %s\n", error.line, error.column,
 				sfdo_desktop_file_error_code_get_description(error.code));
 		return 1;
 	}
+
+	for (struct sfdo_desktop_file_group *group = sfdo_desktop_file_document_get_groups(doc);
+			group != NULL; group = sfdo_desktop_file_group_get_next(group)) {
+		const char *name = sfdo_desktop_file_group_get_name(group, NULL);
+
+		for (size_t i = 0; i < n_queries; i++) {
+			struct query *query = &queries[i];
+			if (strcmp(query->group_name, name) == 0) {
+				struct sfdo_desktop_file_entry *entry =
+						sfdo_desktop_file_group_get_entry(group, query->key, query->key_len);
+				if (entry != NULL) {
+					const char *value = sfdo_desktop_file_entry_get_value(entry, NULL);
+					printf("%s/%s: %s\n", name, query->key, value);
+					break;
+				}
+			}
+		}
+	}
+
+	sfdo_desktop_file_document_destroy(doc);
+	free(queries);
 
 	return 0;
 }
