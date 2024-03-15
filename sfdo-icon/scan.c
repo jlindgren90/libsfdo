@@ -27,51 +27,6 @@ static void check_dir_stats(struct sfdo_icon_state *state, size_t dir_i, const c
 	}
 }
 
-static bool walk_dir(struct sfdo_icon_scanner *scanner, DIR *dirp) {
-	struct sfdo_logger *logger = scanner->logger;
-
-	struct dirent *dirent;
-	while ((dirent = readdir(dirp)) != NULL) {
-		char *name = dirent->d_name;
-		size_t name_len = strlen(dirent->d_name);
-		if (name_len < 5) {
-			continue;
-		}
-		size_t icon_name_len = name_len - 4;
-		if (name[icon_name_len] != '.') {
-			continue;
-		}
-
-		char *ext = &name[icon_name_len + 1];
-		int format = 0;
-		if (strcmp(ext, "png") == 0) {
-			format = SFDO_ICON_FORMAT_MASK_PNG;
-		} else if (strcmp(ext, "svg") == 0) {
-			format = SFDO_ICON_FORMAT_MASK_SVG;
-		} else if (strcmp(ext, "xpm") == 0) {
-			format = SFDO_ICON_FORMAT_MASK_XPM;
-		} else {
-			continue;
-		}
-
-		struct sfdo_icon_scanner_image *entry =
-				sfdo_hashmap_get(&scanner->subdir_image_set, name, icon_name_len, true);
-		if (entry == NULL) {
-			logger_write_oom(logger);
-			return false;
-		} else if (entry->base.key == NULL) {
-			entry->base.key = icon_scanner_intern_name(scanner, name, icon_name_len);
-			if (entry->base.key == NULL) {
-				return false;
-			}
-			entry->formats = 0;
-		}
-		entry->formats |= format;
-	}
-
-	return true;
-}
-
 static bool scanner_init(
 		struct sfdo_icon_scanner *scanner, struct sfdo_logger *logger, size_t n_dirs) {
 	if (!icon_state_init(&scanner->state, n_dirs)) {
@@ -83,14 +38,12 @@ static bool scanner_init(
 
 	scanner->images_len = scanner->images_cap = 0;
 	sfdo_hashmap_init(&scanner->image_names, sizeof(struct sfdo_hashmap_entry));
-	sfdo_hashmap_init(&scanner->subdir_image_set, sizeof(struct sfdo_icon_scanner_image));
 
 	return true;
 }
 
 static void scanner_finish(struct sfdo_icon_scanner *scanner) {
 	sfdo_hashmap_finish(&scanner->image_names);
-	sfdo_hashmap_finish(&scanner->subdir_image_set);
 }
 
 static void scanner_discard_and_finish(struct sfdo_icon_scanner *scanner) {
@@ -170,30 +123,68 @@ static bool scan_dir(struct sfdo_icon_scanner *scanner, const char *path,
 		return true;
 	}
 
-	struct sfdo_hashmap *image_set = &scanner->subdir_image_set;
-	sfdo_hashmap_clear(image_set);
+	struct sfdo_hashmap image_set;
+	sfdo_hashmap_init(&image_set, sizeof(struct sfdo_icon_scanner_image));
 
-	bool walk_ok = walk_dir(scanner, dirp);
-	closedir(dirp);
+	bool ok = false;
 
-	if (!walk_ok) {
-		return false;
+	struct dirent *dirent;
+	while ((dirent = readdir(dirp)) != NULL) {
+		char *name = dirent->d_name;
+		size_t name_len = strlen(dirent->d_name);
+		if (name_len < 5) {
+			continue;
+		}
+		size_t icon_name_len = name_len - 4;
+		if (name[icon_name_len] != '.') {
+			continue;
+		}
+
+		char *ext = &name[icon_name_len + 1];
+		int format = 0;
+		if (strcmp(ext, "png") == 0) {
+			format = SFDO_ICON_FORMAT_MASK_PNG;
+		} else if (strcmp(ext, "svg") == 0) {
+			format = SFDO_ICON_FORMAT_MASK_SVG;
+		} else if (strcmp(ext, "xpm") == 0) {
+			format = SFDO_ICON_FORMAT_MASK_XPM;
+		} else {
+			continue;
+		}
+
+		struct sfdo_icon_scanner_image *entry =
+				sfdo_hashmap_get(&image_set, name, icon_name_len, true);
+		if (entry == NULL) {
+			logger_write_oom(logger);
+			return false;
+		} else if (entry->base.key == NULL) {
+			entry->base.key = icon_scanner_intern_name(scanner, name, icon_name_len);
+			if (entry->base.key == NULL) {
+				goto end;
+			}
+			entry->formats = 0;
+		}
+		entry->formats |= format;
 	}
 
-	for (size_t i = 0; i < image_set->cap; i++) {
+	for (size_t i = 0; i < image_set.cap; i++) {
 		struct sfdo_icon_scanner_image *entry =
-				&((struct sfdo_icon_scanner_image *)image_set->mem)[i];
+				&((struct sfdo_icon_scanner_image *)image_set.mem)[i];
 		if (entry->base.key != NULL) {
 			if (!icon_scanner_add_image(scanner, basedir, subdir, entry->base.key,
 						entry->base.key_len, entry->formats)) {
-				return false;
+				goto end;
 			}
 		}
 	}
 
-	logger_write(logger, SFDO_LOG_LEVEL_DEBUG, "Added %zu image(s) from %s", image_set->len, path);
+	ok = true;
+	logger_write(logger, SFDO_LOG_LEVEL_DEBUG, "Added %zu image(s) from %s", image_set.len, path);
 
-	return true;
+end:
+	sfdo_hashmap_finish(&image_set);
+	closedir(dirp);
+	return ok;
 }
 
 static bool rescan_node(struct sfdo_icon_theme_node *node, struct sfdo_icon_theme *theme) {

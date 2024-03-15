@@ -92,9 +92,7 @@ struct sfdo_icon_scanner {
 	struct sfdo_icon_state state;
 
 	size_t images_len, images_cap;
-
 	struct sfdo_hashmap image_names; // sfdo_hashmap_entry
-	struct sfdo_hashmap subdir_image_set; // sfdo_icon_scanner_image
 };
 
 bool icon_state_init(struct sfdo_icon_state *state, size_t n_dirs);
