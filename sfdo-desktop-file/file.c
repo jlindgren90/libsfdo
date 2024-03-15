@@ -178,7 +178,7 @@ static inline void advance(struct sfdo_desktop_file_loader *loader) {
 }
 
 static bool add_bytes(struct sfdo_desktop_file_loader *loader, char *bytes, size_t len) {
-	if (loader->buf_len == loader->buf_cap && !sfdo_grow(&loader->buf, &loader->buf_cap, 1)) {
+	if (loader->buf_len + len > loader->buf_cap && !sfdo_grow(&loader->buf, &loader->buf_cap, 1)) {
 		set_error(loader, SFDO_DESKTOP_FILE_ERROR_OOM);
 		return false;
 	}
