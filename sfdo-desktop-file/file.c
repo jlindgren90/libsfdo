@@ -420,7 +420,9 @@ static bool read_entry(struct sfdo_desktop_file_loader *loader) {
 			return false;
 		}
 		entry->has_default = true;
-		overwrite_value = true;
+		if (entry->locale_match_level == 0) {
+			overwrite_value = true;
+		}
 	}
 
 	if (!skip_ws(loader)) {
