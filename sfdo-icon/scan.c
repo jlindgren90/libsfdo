@@ -201,7 +201,6 @@ static bool rescan_node(struct sfdo_icon_theme_node *node, struct sfdo_icon_them
 
 	struct sfdo_icon_scanner scanner;
 	if (!scanner_init(&scanner, logger, theme->n_basedirs * (node->n_subdirs + 1))) {
-		logger_write_oom(logger);
 		free(cache_files);
 		return false;
 	}
