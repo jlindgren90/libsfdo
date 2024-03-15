@@ -164,8 +164,6 @@ static bool peek(struct sfdo_desktop_file_loader *loader) {
 
 	loader->rune = rune;
 	return true;
-
-	return true;
 }
 
 static inline void advance(struct sfdo_desktop_file_loader *loader) {
