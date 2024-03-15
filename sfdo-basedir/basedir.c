@@ -252,8 +252,12 @@ SFDO_API const struct sfdo_string *sfdo_basedir_get_data_dirs(
 	return ctx->data_dirs;
 }
 
-SFDO_API const struct sfdo_string *sfdo_basedir_get_data_home(struct sfdo_basedir_ctx *ctx) {
-	return ctx->data_dirs;
+SFDO_API const char *sfdo_basedir_get_data_home(struct sfdo_basedir_ctx *ctx, size_t *len) {
+	struct sfdo_string *data_home = ctx->data_dirs;
+	if (len != NULL) {
+		*len = data_home->len;
+	}
+	return data_home->data;
 }
 
 SFDO_API const struct sfdo_string *sfdo_basedir_get_data_system_dirs(
@@ -268,8 +272,12 @@ SFDO_API const struct sfdo_string *sfdo_basedir_get_config_dirs(
 	return ctx->config_dirs;
 }
 
-SFDO_API const struct sfdo_string *sfdo_basedir_get_config_home(struct sfdo_basedir_ctx *ctx) {
-	return ctx->config_dirs;
+SFDO_API const char *sfdo_basedir_get_config_home(struct sfdo_basedir_ctx *ctx, size_t *len) {
+	struct sfdo_string *config_home = ctx->config_dirs;
+	if (len != NULL) {
+		*len = config_home->len;
+	}
+	return config_home->data;
 }
 
 SFDO_API const struct sfdo_string *sfdo_basedir_get_config_system_dirs(
@@ -278,14 +286,23 @@ SFDO_API const struct sfdo_string *sfdo_basedir_get_config_system_dirs(
 	return ctx->config_dirs + 1;
 }
 
-SFDO_API const struct sfdo_string *sfdo_basedir_get_state_home(struct sfdo_basedir_ctx *ctx) {
-	return &ctx->state_home;
+SFDO_API const char *sfdo_basedir_get_state_home(struct sfdo_basedir_ctx *ctx, size_t *len) {
+	if (len != NULL) {
+		*len = ctx->state_home.len;
+	}
+	return ctx->state_home.data;
 }
 
-SFDO_API const struct sfdo_string *sfdo_basedir_get_cache_home(struct sfdo_basedir_ctx *ctx) {
-	return &ctx->cache_home;
+SFDO_API const char *sfdo_basedir_get_cache_home(struct sfdo_basedir_ctx *ctx, size_t *len) {
+	if (len != NULL) {
+		*len = ctx->cache_home.len;
+	}
+	return ctx->cache_home.data;
 }
 
-SFDO_API const struct sfdo_string *sfdo_basedir_get_runtime_dir(struct sfdo_basedir_ctx *ctx) {
-	return &ctx->runtime_dir;
+SFDO_API const char *sfdo_basedir_get_runtime_dir(struct sfdo_basedir_ctx *ctx, size_t *len) {
+	if (len != NULL) {
+		*len = ctx->runtime_dir.len;
+	}
+	return ctx->runtime_dir.data;
 }
