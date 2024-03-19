@@ -60,3 +60,19 @@ void sfdo_strpool_finish(struct sfdo_strpool *pool) {
 		chunk = next;
 	}
 }
+
+void sfdo_strpool_save(struct sfdo_strpool *pool, struct sfdo_strpool_state *state) {
+	state->chunk = pool->chunks;
+	state->n_free = pool->n_free;
+}
+
+void sfdo_strpool_restore(struct sfdo_strpool *pool, struct sfdo_strpool_state *state) {
+	struct sfdo_strpool_chunk *chunk = pool->chunks;
+	while (chunk != state->chunk) {
+		struct sfdo_strpool_chunk *next = chunk->next;
+		free(chunk);
+		chunk = next;
+	}
+	pool->chunks = chunk;
+	pool->n_free = state->n_free;
+}
