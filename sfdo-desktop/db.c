@@ -340,13 +340,27 @@ static bool exec_needs_escape(char c) {
 	}
 }
 
+static bool exec_is_deprecated_field_code(char c) {
+	switch (c) {
+	case 'd':
+	case 'D':
+	case 'n':
+	case 'N':
+	case 'v':
+	case 'm':
+		return true;
+	default:
+		return false;
+	}
+}
+
 static void exec_skip_ws(struct sfdo_desktop_exec_scanner *scanner) {
 	while (scanner->i != scanner->len && exec_is_ws(scanner->exec[scanner->i])) {
 		++scanner->i;
 	}
 }
 
-static bool exec_peek_standalone(struct sfdo_desktop_exec_scanner *scanner, char *code) {
+static bool exec_consume_standalone(struct sfdo_desktop_exec_scanner *scanner, char *code) {
 	const char *exec = scanner->exec;
 	size_t i = scanner->i;
 	size_t len = scanner->len;
@@ -354,14 +368,12 @@ static bool exec_peek_standalone(struct sfdo_desktop_exec_scanner *scanner, char
 		return false;
 	}
 	*code = exec[i + 1];
-	if (len - i == 2) {
-		return true;
+	if (len - i > 2 && !exec_is_ws(exec[i + 2])) {
+		// Followed by a non-whitespace character
+		return false;
 	}
-	char after = exec[i + 2];
-	if (exec_is_ws(after)) {
-		return true;
-	}
-	return false;
+	scanner->i += 2;
+	return true;
 }
 
 static bool exec_set_target(struct sfdo_desktop_exec_scanner *scanner, char code) {
@@ -391,6 +403,7 @@ static bool exec_scan_quoted(struct sfdo_desktop_exec_scanner *scanner) {
 	++scanner->i; // Skip the quote
 
 	bool escape = false;
+	size_t escape_i;
 	while (true) {
 		if (scanner->i == scanner->len) {
 			logger_write(logger, SFDO_LOG_LEVEL_ERROR, "%d:%d: unclosed quote", scanner->line,
@@ -403,13 +416,14 @@ static bool exec_scan_quoted(struct sfdo_desktop_exec_scanner *scanner) {
 			if (!exec_needs_escape(c)) {
 				logger_write(logger, SFDO_LOG_LEVEL_ERROR,
 						"%d:%d: invalid escape sequence at position %zu", scanner->line,
-						scanner->column, scanner->i - 1);
+						scanner->column, escape_i);
 				return false;
 			}
 		} else if (c == '"') {
 			break;
 		} else if (c == '\\') {
 			escape = true;
+			escape_i = scanner->i;
 		} else if (c == '%') {
 			logger_write(logger, SFDO_LOG_LEVEL_ERROR,
 					"%d:%d: field codes must not appear in quoted arguments", scanner->line,
@@ -438,14 +452,13 @@ static bool exec_scan_quoted(struct sfdo_desktop_exec_scanner *scanner) {
 }
 
 static bool exec_scan_unquoted(struct sfdo_desktop_exec_scanner *scanner) {
-	struct sfdo_desktop_exec *dst = scanner->dst;
-
 	struct sfdo_desktop_db *db = scanner->db;
 	struct sfdo_logger *logger = &db->ctx->logger;
 
+	size_t field_i = scanner->i;
+
 	char standalone;
-	if (exec_peek_standalone(scanner, &standalone)) {
-		bool handled = true;
+	if (exec_consume_standalone(scanner, &standalone)) {
 		switch (standalone) {
 		case 'f':
 		case 'u':
@@ -461,34 +474,32 @@ static bool exec_scan_unquoted(struct sfdo_desktop_exec_scanner *scanner) {
 				scanner->n_literals += 2;
 			}
 			break;
+		case '%':
+		case 'c':
+		case 'k':
+			++scanner->n_literals;
+			break;
 		default:
-			handled = false;
+			if (!exec_is_deprecated_field_code(standalone)) {
+				goto err_invalid_field_code;
+			}
+			++scanner->n_literals;
+			break;
 		}
-		if (handled) {
-			scanner->i += 2;
-			return true;
-		}
+		return true;
 	}
 
-	size_t arg_len = 0;
-	bool has_target = false;
 	bool field = false;
 	while (scanner->i != scanner->len) {
 		char c = scanner->exec[scanner->i];
 		if (field) {
-			size_t field_i = scanner->i - 1;
 			field = false;
 			switch (c) {
-			case '%':
-				++arg_len;
-				break;
 			case 'f':
 			case 'u':
 				if (!exec_set_target(scanner, c)) {
 					return false;
 				}
-				dst->embed.before = arg_len;
-				has_target = true;
 				break;
 			case 'F':
 			case 'U':
@@ -497,41 +508,34 @@ static bool exec_scan_unquoted(struct sfdo_desktop_exec_scanner *scanner) {
 						"%d:%d: field code at position %zu must be standalone", scanner->line,
 						scanner->column, field_i);
 				return false;
+			case '%':
 			case 'c':
 			case 'k':
-			case 'd':
-			case 'D':
-			case 'n':
-			case 'N':
-			case 'v':
-			case 'm':
 				break;
 			default:
-				logger_write(logger, SFDO_LOG_LEVEL_ERROR,
-						"%d:%d: invalid field code at position %zu", scanner->line, scanner->column,
-						scanner->i - 1);
-				return false;
+				if (!exec_is_deprecated_field_code(standalone)) {
+					goto err_invalid_field_code;
+				}
+				break;
 			}
 		} else if (exec_is_ws(c)) {
 			break;
 		} else if (c == '%') {
 			field = true;
+			field_i = scanner->i;
+		} else if (c == '=') {
+			if (scanner->n_literals == 0) {
+				// First arg
+				logger_write(logger, SFDO_LOG_LEVEL_ERROR,
+						"%d:%d: \"=\" must not appear in the executable path", scanner->line,
+						scanner->column);
+				return false;
+			}
 		} else if (exec_is_reserved(c)) {
 			logger_write(logger, SFDO_LOG_LEVEL_ERROR,
 					"%d:%d: reserved character in a unquoted arg at position %zu", scanner->line,
 					scanner->column, scanner->i);
 			return false;
-		} else {
-			if (c == '=') {
-				if (scanner->n_literals == 0) {
-					// First arg
-					logger_write(logger, SFDO_LOG_LEVEL_ERROR,
-							"%d:%d: \"=\" must not appear in the executable path", scanner->line,
-							scanner->column);
-					return false;
-				}
-			}
-			++arg_len;
 		}
 		++scanner->i;
 	}
@@ -541,13 +545,13 @@ static bool exec_scan_unquoted(struct sfdo_desktop_exec_scanner *scanner) {
 		return false;
 	}
 
-	if (has_target) {
-		dst->embed.after = arg_len - dst->embed.before;
-		assert(dst->embed.before != 0 || dst->embed.after != 0);
-	}
-
 	++scanner->n_literals;
 	return true;
+
+err_invalid_field_code:
+	logger_write(logger, SFDO_LOG_LEVEL_ERROR, "%d:%d: invalid field code at position %zu",
+			scanner->line, scanner->column, field_i);
+	return false;
 }
 
 static bool exec_add_byte(struct sfdo_desktop_exec_scanner *scanner, char c, size_t *len) {
@@ -613,11 +617,8 @@ static bool exec_add_unquoted(struct sfdo_desktop_exec_scanner *scanner) {
 	struct sfdo_desktop_entry *entry = scanner->entry;
 
 	char standalone;
-	if (exec_peek_standalone(scanner, &standalone)) {
+	if (exec_consume_standalone(scanner, &standalone)) {
 		switch (standalone) {
-		case '%':
-			dst->literals[scanner->n_literals++] = "%";
-			break;
 		case 'f':
 		case 'u':
 		case 'F':
@@ -629,27 +630,24 @@ static bool exec_add_unquoted(struct sfdo_desktop_exec_scanner *scanner) {
 				dst->literals[scanner->n_literals++] = entry->icon.data;
 			}
 			break;
+		case '%':
+			dst->literals[scanner->n_literals++] = "%";
+			break;
 		case 'c':
 			dst->literals[scanner->n_literals++] = entry->name.data;
 			break;
 		case 'k':
 			dst->literals[scanner->n_literals++] = entry->file_path.data;
 			break;
-		case 'd':
-		case 'D':
-		case 'n':
-		case 'N':
-		case 'v':
-		case 'm':
-			// Deprecated
-			break;
 		default:
-			abort(); // Unreachable
+			assert(exec_is_deprecated_field_code(standalone));
+			dst->literals[scanner->n_literals++] = "";
+			break;
 		}
-		scanner->i += 2;
 		return true;
 	}
 
+	bool has_target = true;
 	size_t len = 0;
 	while (scanner->i < scanner->len) {
 		char c = scanner->exec[scanner->i];
@@ -659,14 +657,17 @@ static bool exec_add_unquoted(struct sfdo_desktop_exec_scanner *scanner) {
 			++scanner->i;
 			c = scanner->exec[scanner->i];
 			switch (c) {
+			case 'f':
+			case 'u':
+				assert(!has_target);
+				assert(dst->embed.before == 0 && dst->embed.after == 0);
+				has_target = true;
+				dst->embed.before = len;
+				break;
 			case '%':
 				if (!exec_add_byte(scanner, c, &len)) {
 					return false;
 				}
-				break;
-			case 'f':
-			case 'u':
-				// Don't do anything
 				break;
 			case 'c':
 				if (!exec_add_string(scanner, &entry->name, &len)) {
@@ -678,16 +679,8 @@ static bool exec_add_unquoted(struct sfdo_desktop_exec_scanner *scanner) {
 					return false;
 				}
 				break;
-			case 'd':
-			case 'D':
-			case 'n':
-			case 'N':
-			case 'v':
-			case 'm':
-				// Deprecated
-				break;
 			default:
-				abort(); // Unreachable
+				break;
 			}
 		} else {
 			if (!exec_add_byte(scanner, c, &len)) {
@@ -704,6 +697,11 @@ static bool exec_add_unquoted(struct sfdo_desktop_exec_scanner *scanner) {
 	char *owned = sfdo_strpool_add(&db->strings, scanner->buf, len);
 	if (owned == NULL) {
 		return false;
+	}
+
+	if (has_target) {
+		dst->embed.after = len - dst->embed.before;
+		assert(dst->embed.before != 0 || dst->embed.after != 0);
 	}
 
 	dst->literals[scanner->n_literals++] = owned;
@@ -784,6 +782,8 @@ static enum sfdo_desktop_entry_load_result load_exec(struct sfdo_desktop_loader 
 			break;
 		}
 	}
+
+	assert(scanner.n_literals == dst->n_literals);
 
 	free(scanner.buf);
 	if (!ok) {
