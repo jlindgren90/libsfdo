@@ -352,6 +352,12 @@ static struct sfdo_icon_theme_node *node_load(struct sfdo_icon_loader *loader,
 		subdir->max_pixel_size *= subdir->scale;
 	}
 
+	if (subdir_i != node->n_subdirs) {
+		logger_write(logger, SFDO_LOG_LEVEL_ERROR, "Found only %zu directory groups out of %zu",
+				subdir_i, node->n_subdirs);
+		goto err_dir;
+	}
+
 	goto end;
 
 err_dir_value:
@@ -370,7 +376,6 @@ err_node_subdirs:
 err_node:
 	node = NULL;
 err_initial:
-
 end:
 	sfdo_hashmap_finish(&subdir_set);
 	return node;
