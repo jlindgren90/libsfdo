@@ -69,9 +69,6 @@ const char *sfdo_desktop_entry_get_try_exec(struct sfdo_desktop_entry *entry, si
 
 struct sfdo_desktop_exec *sfdo_desktop_entry_get_exec(struct sfdo_desktop_entry *entry);
 
-const char **sfdo_desktop_entry_exec_command_get_args(
-		struct sfdo_desktop_exec_command *command, size_t *n_args);
-
 const char *sfdo_desktop_entry_get_path(struct sfdo_desktop_entry *entry, size_t *len);
 
 bool sfdo_desktop_entry_get_terminal(struct sfdo_desktop_entry *entry);
@@ -124,6 +121,9 @@ struct sfdo_desktop_exec_command *sfdo_desktop_exec_format(
 
 struct sfdo_desktop_exec_command *sfdo_desktop_exec_format_list(
 		struct sfdo_desktop_exec *exec, const char **uris, size_t n_uris);
+
+const char **sfdo_desktop_exec_command_get_args(
+		struct sfdo_desktop_exec_command *command, size_t *n_args);
 
 void sfdo_desktop_exec_command_destroy(struct sfdo_desktop_exec_command *command);
 

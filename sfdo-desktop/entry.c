@@ -260,7 +260,7 @@ err_cmd:
 	return NULL;
 }
 
-SFDO_API const char **sfdo_desktop_entry_exec_command_get_args(
+SFDO_API const char **sfdo_desktop_exec_command_get_args(
 		struct sfdo_desktop_exec_command *command, size_t *n_args) {
 	if (n_args != NULL) {
 		*n_args = command->n_args;

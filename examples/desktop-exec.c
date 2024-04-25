@@ -122,7 +122,7 @@ int main(int argc, char **argv) {
 		struct sfdo_desktop_exec_command *cmd =
 				sfdo_desktop_exec_format_list(exec, (const char **)argv, (size_t)argc);
 		size_t n_args;
-		const char **args = sfdo_desktop_entry_exec_command_get_args(cmd, &n_args);
+		const char **args = sfdo_desktop_exec_command_get_args(cmd, &n_args);
 		if (print) {
 			for (size_t i = 0; i < n_args; i++) {
 				printf("%zu: %s\n", i + 1, args[i]);
