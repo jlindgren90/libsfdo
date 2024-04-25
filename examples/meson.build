@@ -12,6 +12,20 @@ examples = [
     ],
   },
   {
+    'name': 'desktop-load',
+    'deps': [
+      sfdo_basedir,
+      sfdo_desktop,
+    ],
+  },
+  {
+    'name': 'desktop-exec',
+    'deps': [
+      sfdo_basedir,
+      sfdo_desktop,
+    ],
+  },
+  {
     'name': 'icon-lookup',
     'deps': [
       sfdo_basedir,

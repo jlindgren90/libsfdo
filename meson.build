@@ -57,6 +57,14 @@ libs = [
     'description': 'Desktop entry file format parser library',
   },
   {
+    'name': 'desktop',
+    'sfdo-deps': [
+      'basedir',
+      'desktop-file',
+    ],
+    'description': 'Desktop entry specification implementation in C',
+  },
+  {
     'name': 'icon',
     'sfdo-deps': [
       'basedir',
