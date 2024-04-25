@@ -1,31 +1,30 @@
 # libsfdo
 
-A collection of libraries which implement [Freedesktop.org specifications].
+A collection of libraries which implement some of [the Freedesktop.org specifications].
 
-See respective header files for documentation.
+See respective header files for documentation (TODO).
 
 Discuss in [#eclairs on Libera.Chat].
 
-[Freedesktop.org specifications]: https://specifications.freedesktop.org/
+[the Freedesktop.org specifications]: https://specifications.freedesktop.org/
 [#eclairs on Libera.Chat]: https://web.libera.chat/#eclairs
 
-## Status
+## Disclaimer
 
-Specifications not listed below are out of libsfdo's scope. Specifications marked as N/A are yet to be evaluated as to whether they need to be implemented by libsfdo.
+Freedesktop.org specifications are rather poorly written and leave a lot of room for interpretation.
+libsfdo tries to follow them as closely as possible nonetheless, except for cases when doing so
+would add too much complexity for no benefit and/or result in suboptimal behavior. Additionally,
+libsfdo is much stricter than other implementations, so it may refuse to process non-conformant
+desktop entry files or icon themes. It is advised that you try to fix the offending files before
+opening an issue.
+
+## Implementations
 
 Specification | Library
 -|-
-autostart-spec | N/A
 basedir-spec | `libsfdo-basedir`
-desktop-entry-spec | **TODO**
+desktop-entry-spec | `libsfdo-desktop`, `libsfdo-desktop-file`
 icon-theme-spec | `libsfdo-icon`
-mime-apps-spec | N/A
-menu-spec | N/A
-recent-file-spec | N/A
-shared-mime-info-spec | N/A
-sound-theme-spec | **TODO**
-thumbnail-spec | N/A
-trash-spec | **TODO**
 
 ## Building
 
