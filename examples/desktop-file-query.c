@@ -54,7 +54,7 @@ int main(int argc, char **argv) {
 	struct query *queries = NULL;
 	size_t n_queries = (size_t)argc;
 
-	if (argc > 0) {
+	if (n_queries > 0) {
 		queries = calloc(n_queries, sizeof(*queries));
 		if (queries == NULL) {
 			fprintf(stderr, "Memory allocation error\n");
