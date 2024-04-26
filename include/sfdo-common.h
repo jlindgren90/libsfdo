@@ -4,10 +4,11 @@
 #include <stdarg.h>
 #include <stddef.h>
 
+// Used to specify that a sequence of characters is null-terminated.
 #define SFDO_NT ((size_t)-1)
 
 struct sfdo_string {
-	const char *data; // Null-terminated
+	const char *data; // UTF-8, null-terminated
 	size_t len; // In octets, excluding the null terminator
 };
 
