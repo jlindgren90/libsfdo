@@ -140,8 +140,7 @@ static bool load_cache(struct sfdo_icon_cache *cache, struct sfdo_logger *logger
 					goto err_format;
 				}
 
-				if (images_len == images_cap &&
-						!sfdo_grow(&cache->images, &images_cap, sizeof(*cache->images))) {
+				if (!sfdo_grow(&cache->images, &images_cap, images_len, sizeof(*cache->images))) {
 					logger_write_oom(logger);
 					return false;
 				}

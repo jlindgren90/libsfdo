@@ -82,8 +82,8 @@ bool icon_scanner_add_image(struct sfdo_icon_scanner *scanner, const struct sfdo
 	struct sfdo_logger *logger = scanner->logger;
 
 	struct sfdo_icon_state *state = &scanner->state;
-	if (scanner->images_len == scanner->images_cap &&
-			!sfdo_grow(&state->images, &scanner->images_cap, sizeof(*state->images))) {
+	if (!sfdo_grow(&state->images, &scanner->images_cap, scanner->images_len,
+				sizeof(*state->images))) {
 		logger_write_oom(logger);
 		return false;
 	}

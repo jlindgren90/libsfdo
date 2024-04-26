@@ -396,7 +396,7 @@ static enum sfdo_desktop_entry_load_result exec_add_byte(
 	struct sfdo_logger *logger = &db->ctx->logger;
 	struct sfdo_desktop_exec_scanner *scanner = &loader->exec;
 
-	if (scanner->buf_len == scanner->buf_cap && !sfdo_grow(&scanner->buf, &scanner->buf_cap, 1)) {
+	if (!sfdo_grow(&scanner->buf, &scanner->buf_cap, scanner->buf_len, 1)) {
 		logger_write_oom(logger);
 		return SFDO_DESKTOP_ENTRY_LOAD_OOM;
 	}
@@ -411,12 +411,9 @@ static enum sfdo_desktop_entry_load_result exec_add_string(
 	struct sfdo_logger *logger = &db->ctx->logger;
 	struct sfdo_desktop_exec_scanner *scanner = &loader->exec;
 
-	// TODO: avoid looping
-	while (scanner->buf_len + str->len > scanner->buf_cap) {
-		if (!sfdo_grow(&scanner->buf, &scanner->buf_cap, 1)) {
-			logger_write_oom(logger);
-			return SFDO_DESKTOP_ENTRY_LOAD_OOM;
-		}
+	if (!sfdo_grow_n(&scanner->buf, &scanner->buf_cap, scanner->buf_len, 1, str->len)) {
+		logger_write_oom(logger);
+		return SFDO_DESKTOP_ENTRY_LOAD_OOM;
 	}
 
 	memcpy(&scanner->buf[scanner->buf_len], str->data, str->len);
@@ -431,8 +428,8 @@ static enum sfdo_desktop_entry_load_result exec_add_literal(
 	struct sfdo_logger *logger = &db->ctx->logger;
 	struct sfdo_desktop_exec_scanner *scanner = &loader->exec;
 
-	if (scanner->lit_buf_len == scanner->lit_buf_cap &&
-			!sfdo_grow(&scanner->lit_buf, &scanner->lit_buf_cap, sizeof(const char *))) {
+	if (!sfdo_grow(&scanner->lit_buf, &scanner->lit_buf_cap, scanner->lit_buf_len,
+				sizeof(const char *))) {
 		logger_write_oom(logger);
 		return SFDO_DESKTOP_ENTRY_LOAD_OOM;
 	}
