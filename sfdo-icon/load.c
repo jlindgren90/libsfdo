@@ -66,7 +66,7 @@ static bool schedule_node(struct sfdo_icon_loader *loader, const char *name, siz
 		return true;
 	}
 
-	char *owned_name = sfdo_strpool_add(&loader->theme->strings, name, name_len);
+	const char *owned_name = sfdo_strpool_add(&loader->theme->strings, name, name_len);
 	if (owned_name == NULL) {
 		logger_write_oom(logger);
 		return false;

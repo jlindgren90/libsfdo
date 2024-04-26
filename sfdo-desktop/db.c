@@ -129,11 +129,12 @@ static enum sfdo_desktop_entry_load_result store_string(struct sfdo_desktop_load
 	struct sfdo_desktop_db *db = loader->db;
 	struct sfdo_logger *logger = &db->ctx->logger;
 
-	char *owned = sfdo_strpool_add(&db->strings, value, value_len);
+	const char *owned = sfdo_strpool_add(&db->strings, value, value_len);
 	if (owned == NULL) {
 		logger_write_oom(logger);
 		return SFDO_DESKTOP_ENTRY_LOAD_OOM;
 	}
+
 	dst->data = owned;
 	dst->len = value_len;
 	return SFDO_DESKTOP_ENTRY_LOAD_OK;
@@ -191,7 +192,7 @@ static enum sfdo_desktop_entry_load_result store_list(struct sfdo_desktop_loader
 	while ((sfdo_striter(list, ';', &iter, &item_start, &item_len))) {
 		if (item_len > 0) {
 			struct sfdo_string *item = &items[item_i++];
-			char *owned = sfdo_strpool_add(&db->strings, list + item_start, item_len);
+			const char *owned = sfdo_strpool_add(&db->strings, list + item_start, item_len);
 			if (item == NULL) {
 				logger_write_oom(logger);
 				return SFDO_DESKTOP_ENTRY_LOAD_OOM;
@@ -282,7 +283,7 @@ static enum sfdo_desktop_entry_load_result load_actions(struct sfdo_desktop_load
 				return SFDO_DESKTOP_ENTRY_LOAD_ERROR;
 			}
 
-			char *owned = sfdo_strpool_add(&db->strings, id, id_len);
+			const char *owned = sfdo_strpool_add(&db->strings, id, id_len);
 			if (owned == NULL) {
 				logger_write_oom(logger);
 				return SFDO_DESKTOP_ENTRY_LOAD_OOM;
@@ -451,7 +452,7 @@ static enum sfdo_desktop_entry_load_result exec_save_literal(struct sfdo_desktop
 		return r;
 	}
 
-	char *literal = sfdo_strpool_add(&db->strings, scanner->buf, len);
+	const char *literal = sfdo_strpool_add(&db->strings, scanner->buf, len);
 	if (literal == NULL) {
 		logger_write_oom(logger);
 		return SFDO_DESKTOP_ENTRY_LOAD_OOM;
@@ -1204,7 +1205,7 @@ static bool scan_dir(struct sfdo_desktop_loader *loader, size_t basedir_len) {
 			enum sfdo_desktop_entry_load_result result = entry_load(loader, doc, &entry);
 			sfdo_desktop_file_document_destroy(doc);
 
-			char *owned_id;
+			const char *owned_id;
 			switch (result) {
 			case SFDO_DESKTOP_ENTRY_LOAD_OK:
 				owned_id = sfdo_strpool_add(&db->strings, ib->data, ib->len);
