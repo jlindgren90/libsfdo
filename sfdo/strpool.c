@@ -12,6 +12,10 @@ struct sfdo_strpool_chunk {
 #define CHUNK_MIN_SIZE (4096 - sizeof(struct sfdo_strpool_chunk) - 8)
 
 const char *sfdo_strpool_add(struct sfdo_strpool *pool, const char *data, size_t len) {
+	if (len == 0) {
+		return "";
+	}
+
 	++len; // Include the null terminator
 	char *out = NULL;
 	if (len > pool->n_free) {
