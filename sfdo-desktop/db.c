@@ -307,8 +307,9 @@ static bool exec_is_ws(char c) {
 }
 
 static bool exec_is_reserved(char c) {
-	// Note: whitespace is already handled
 	switch (c) {
+	case ' ':
+	case '\t':
 	case '\n':
 	case '"':
 	case '\'':
@@ -356,6 +357,37 @@ static bool exec_is_deprecated_field_code(char c) {
 	default:
 		return false;
 	}
+}
+
+static enum sfdo_desktop_entry_load_result exec_validate_character(
+		struct sfdo_desktop_loader *loader, char c, bool quoted) {
+	struct sfdo_desktop_db *db = loader->db;
+	struct sfdo_logger *logger = &db->ctx->logger;
+	struct sfdo_desktop_exec_scanner *scanner = &loader->exec;
+
+	if (c == '=' && scanner->lit_buf_len == 0) {
+		logger_write(logger, SFDO_LOG_LEVEL_ERROR,
+				"%d:%d: unexpected \"=\" in the executable path at position %zu", scanner->line,
+				scanner->column, scanner->i);
+		return SFDO_DESKTOP_ENTRY_LOAD_ERROR;
+	}
+
+	if (quoted) {
+		if (exec_needs_escape(c)) {
+			logger_write(logger, SFDO_LOG_LEVEL_ERROR, "%d:%d: unescaped character at position %zu",
+					scanner->line, scanner->column, scanner->i);
+			return SFDO_DESKTOP_ENTRY_LOAD_ERROR;
+		}
+	} else {
+		if (exec_is_reserved(c)) {
+			logger_write(logger, SFDO_LOG_LEVEL_ERROR,
+					"%d:%d: reserved character in a unquoted arg at position %zu", scanner->line,
+					scanner->column, scanner->i);
+			return SFDO_DESKTOP_ENTRY_LOAD_ERROR;
+		}
+	}
+
+	return SFDO_DESKTOP_ENTRY_LOAD_OK;
 }
 
 static enum sfdo_desktop_entry_load_result exec_add_byte(
@@ -501,16 +533,8 @@ static enum sfdo_desktop_entry_load_result exec_add_quoted(struct sfdo_desktop_l
 		} else if (c == '\\' || c == '%') {
 			escape = c;
 			escape_i = scanner->i;
-		} else if (exec_needs_escape(c)) {
-			logger_write(logger, SFDO_LOG_LEVEL_ERROR, "%d:%d: unescaped character at position %zu",
-					scanner->line, scanner->column, scanner->i);
-			return SFDO_DESKTOP_ENTRY_LOAD_ERROR;
-		} else if (c == '=' && scanner->lit_buf_len == 0) {
-			// TODO: dedup
-			logger_write(logger, SFDO_LOG_LEVEL_ERROR,
-					"%d:%d: \"=\" must not appear in the executable path", scanner->line,
-					scanner->column);
-			return SFDO_DESKTOP_ENTRY_LOAD_ERROR;
+		} else if ((r = exec_validate_character(loader, c, true)) != SFDO_DESKTOP_ENTRY_LOAD_OK) {
+			return r;
 		} else {
 			if ((r = exec_add_byte(loader, c)) != SFDO_DESKTOP_ENTRY_LOAD_OK) {
 				return r;
@@ -659,17 +683,8 @@ static enum sfdo_desktop_entry_load_result exec_add_unquoted(struct sfdo_desktop
 		} else if (c == '%') {
 			field = true;
 			field_i = scanner->i;
-		} else if (exec_is_reserved(c)) {
-			logger_write(logger, SFDO_LOG_LEVEL_ERROR,
-					"%d:%d: reserved character in a unquoted arg at position %zu", scanner->line,
-					scanner->column, scanner->i);
-			return SFDO_DESKTOP_ENTRY_LOAD_ERROR;
-		} else if (c == '=' && scanner->lit_buf_len == 0) {
-			// TODO: dedup
-			logger_write(logger, SFDO_LOG_LEVEL_ERROR,
-					"%d:%d: \"=\" must not appear in the executable path", scanner->line,
-					scanner->column);
-			return SFDO_DESKTOP_ENTRY_LOAD_ERROR;
+		} else if ((r = exec_validate_character(loader, c, false)) != SFDO_DESKTOP_ENTRY_LOAD_OK) {
+			return r;
 		} else {
 			if ((r = exec_add_byte(loader, c)) != SFDO_DESKTOP_ENTRY_LOAD_OK) {
 				return r;
