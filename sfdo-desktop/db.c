@@ -21,34 +21,38 @@
 
 #define DESKTOP_ACTION_PREFIX "Desktop Action "
 
+struct sfdo_desktop_exec_scanner {
+	struct sfdo_desktop_entry *entry;
+
+	const char *data;
+	size_t data_len;
+	int line, column;
+
+	struct sfdo_desktop_exec *dst;
+
+	size_t i; // index in exec
+
+	char *buf;
+	size_t buf_len, buf_cap;
+
+	const char **lit_buf;
+	size_t lit_buf_len, lit_buf_cap;
+};
+
 struct sfdo_desktop_loader {
 	struct sfdo_desktop_db *db;
 	const char *locale;
 
 	struct sfdo_strbuild path_buf;
 	struct sfdo_strbuild id_buf;
+
+	struct sfdo_desktop_exec_scanner exec;
 };
 
 enum sfdo_desktop_entry_load_result {
 	SFDO_DESKTOP_ENTRY_LOAD_OK,
 	SFDO_DESKTOP_ENTRY_LOAD_ERROR,
 	SFDO_DESKTOP_ENTRY_LOAD_OOM,
-};
-
-struct sfdo_desktop_exec_scanner {
-	struct sfdo_desktop_db *db;
-	struct sfdo_desktop_entry *entry;
-
-	const char *exec;
-	size_t len;
-	int line, column;
-	struct sfdo_desktop_exec *dst;
-
-	size_t i;
-	size_t n_literals;
-
-	char *buf;
-	size_t buf_cap;
 };
 
 static void exec_finish(struct sfdo_desktop_exec *exec) {
@@ -354,16 +358,181 @@ static bool exec_is_deprecated_field_code(char c) {
 	}
 }
 
-static void exec_skip_ws(struct sfdo_desktop_exec_scanner *scanner) {
-	while (scanner->i != scanner->len && exec_is_ws(scanner->exec[scanner->i])) {
-		++scanner->i;
+static enum sfdo_desktop_entry_load_result exec_add_byte(
+		struct sfdo_desktop_loader *loader, char c) {
+	struct sfdo_desktop_db *db = loader->db;
+	struct sfdo_logger *logger = &db->ctx->logger;
+	struct sfdo_desktop_exec_scanner *scanner = &loader->exec;
+
+	if (scanner->buf_len == scanner->buf_cap && !sfdo_grow(&scanner->buf, &scanner->buf_cap, 1)) {
+		logger_write_oom(logger);
+		return SFDO_DESKTOP_ENTRY_LOAD_OOM;
 	}
+
+	scanner->buf[scanner->buf_len++] = c;
+	return SFDO_DESKTOP_ENTRY_LOAD_OK;
 }
 
-static bool exec_consume_standalone(struct sfdo_desktop_exec_scanner *scanner, char *code) {
-	const char *exec = scanner->exec;
+static enum sfdo_desktop_entry_load_result exec_add_string(
+		struct sfdo_desktop_loader *loader, struct sfdo_string *str) {
+	struct sfdo_desktop_db *db = loader->db;
+	struct sfdo_logger *logger = &db->ctx->logger;
+	struct sfdo_desktop_exec_scanner *scanner = &loader->exec;
+
+	// TODO: avoid looping
+	while (scanner->buf_len + str->len > scanner->buf_cap) {
+		if (!sfdo_grow(&scanner->buf, &scanner->buf_cap, 1)) {
+			logger_write_oom(logger);
+			return SFDO_DESKTOP_ENTRY_LOAD_OOM;
+		}
+	}
+
+	memcpy(&scanner->buf[scanner->buf_len], str->data, str->len);
+	scanner->buf_len += str->len;
+
+	return SFDO_DESKTOP_ENTRY_LOAD_OK;
+}
+
+static enum sfdo_desktop_entry_load_result exec_add_literal(
+		struct sfdo_desktop_loader *loader, const char *literal) {
+	struct sfdo_desktop_db *db = loader->db;
+	struct sfdo_logger *logger = &db->ctx->logger;
+	struct sfdo_desktop_exec_scanner *scanner = &loader->exec;
+
+	if (scanner->lit_buf_len == scanner->lit_buf_cap &&
+			!sfdo_grow(&scanner->lit_buf, &scanner->lit_buf_cap, sizeof(const char *))) {
+		logger_write_oom(logger);
+		return SFDO_DESKTOP_ENTRY_LOAD_OOM;
+	}
+
+	scanner->lit_buf[scanner->lit_buf_len++] = literal;
+	return SFDO_DESKTOP_ENTRY_LOAD_OK;
+}
+
+static enum sfdo_desktop_entry_load_result exec_save_literal(struct sfdo_desktop_loader *loader) {
+	struct sfdo_desktop_db *db = loader->db;
+	struct sfdo_logger *logger = &db->ctx->logger;
+	struct sfdo_desktop_exec_scanner *scanner = &loader->exec;
+
+	enum sfdo_desktop_entry_load_result r = SFDO_DESKTOP_ENTRY_LOAD_OK;
+
+	size_t len = scanner->buf_len;
+
+	if ((r = exec_add_byte(loader, '\0')) != SFDO_DESKTOP_ENTRY_LOAD_OK) {
+		return r;
+	}
+
+	char *literal = sfdo_strpool_add(&db->strings, scanner->buf, len);
+	if (literal == NULL) {
+		logger_write_oom(logger);
+		return SFDO_DESKTOP_ENTRY_LOAD_OOM;
+	}
+
+	return exec_add_literal(loader, literal);
+}
+
+static enum sfdo_desktop_entry_load_result exec_set_target(
+		struct sfdo_desktop_loader *loader, char code) {
+	struct sfdo_desktop_db *db = loader->db;
+	struct sfdo_logger *logger = &db->ctx->logger;
+	struct sfdo_desktop_exec_scanner *scanner = &loader->exec;
+
+	struct sfdo_desktop_exec *dst = scanner->dst;
+
+	if (dst->target_i != (size_t)-1) {
+		logger_write(logger, SFDO_LOG_LEVEL_ERROR,
+				"%d:%d: a command line must not have multiple target field codes", scanner->line,
+				scanner->column);
+		return SFDO_DESKTOP_ENTRY_LOAD_ERROR;
+	}
+	dst->target_i = scanner->lit_buf_len;
+
+	dst->supports_uri = code == 'u' || code == 'U';
+	dst->supports_list = code == 'F' || code == 'U';
+
+	return SFDO_DESKTOP_ENTRY_LOAD_OK;
+}
+
+static enum sfdo_desktop_entry_load_result exec_add_quoted(struct sfdo_desktop_loader *loader) {
+	struct sfdo_desktop_db *db = loader->db;
+	struct sfdo_logger *logger = &db->ctx->logger;
+	struct sfdo_desktop_exec_scanner *scanner = &loader->exec;
+
+	enum sfdo_desktop_entry_load_result r = SFDO_DESKTOP_ENTRY_LOAD_OK;
+
+	size_t start_i = scanner->i;
+	++scanner->i; // Skip the opening quote
+
+	char escape = '\0';
+	size_t escape_i;
+	while (true) {
+		if (scanner->i == scanner->data_len) {
+			logger_write(logger, SFDO_LOG_LEVEL_ERROR, "%d:%d: unclosed quote at position %zu",
+					scanner->line, scanner->column, start_i);
+			return SFDO_DESKTOP_ENTRY_LOAD_ERROR;
+		}
+		char c = scanner->data[scanner->i];
+
+		if (escape != '\0') {
+			if (escape == '\\') {
+				if (!exec_needs_escape(c)) {
+					logger_write(logger, SFDO_LOG_LEVEL_ERROR,
+							"%d:%d: invalid escape sequence at position %zu", scanner->line,
+							scanner->column, escape_i);
+					return SFDO_DESKTOP_ENTRY_LOAD_ERROR;
+				}
+			} else if (escape == '%') {
+				if (c != '%') {
+					logger_write(logger, SFDO_LOG_LEVEL_ERROR,
+							"%d:%d: unexpected field code in a quoted argument at position %zu",
+							scanner->line, scanner->column, escape_i);
+					return SFDO_DESKTOP_ENTRY_LOAD_ERROR;
+				}
+			} else {
+				assert(false);
+			}
+			escape = '\0';
+
+			if ((r = exec_add_byte(loader, c)) != SFDO_DESKTOP_ENTRY_LOAD_OK) {
+				return r;
+			}
+		} else if (c == '"') {
+			break;
+		} else if (c == '\\' || c == '%') {
+			escape = c;
+			escape_i = scanner->i;
+		} else if (exec_needs_escape(c)) {
+			logger_write(logger, SFDO_LOG_LEVEL_ERROR, "%d:%d: unescaped character at position %zu",
+					scanner->line, scanner->column, scanner->i);
+			return SFDO_DESKTOP_ENTRY_LOAD_ERROR;
+		} else if (c == '=' && scanner->lit_buf_len == 0) {
+			// TODO: dedup
+			logger_write(logger, SFDO_LOG_LEVEL_ERROR,
+					"%d:%d: \"=\" must not appear in the executable path", scanner->line,
+					scanner->column);
+			return SFDO_DESKTOP_ENTRY_LOAD_ERROR;
+		} else {
+			if ((r = exec_add_byte(loader, c)) != SFDO_DESKTOP_ENTRY_LOAD_OK) {
+				return r;
+			}
+		}
+
+		++scanner->i;
+	}
+
+	if ((r = exec_save_literal(loader)) != SFDO_DESKTOP_ENTRY_LOAD_OK) {
+		return r;
+	}
+
+	++scanner->i; // Skip the closing quote
+
+	return SFDO_DESKTOP_ENTRY_LOAD_OK;
+}
+
+static bool exec_try_consume_standalone(struct sfdo_desktop_exec_scanner *scanner, char *code) {
+	const char *exec = scanner->data;
 	size_t i = scanner->i;
-	size_t len = scanner->len;
+	size_t len = scanner->data_len;
 	if (len - i < 2 || exec[i] != '%') {
 		return false;
 	}
@@ -376,130 +545,85 @@ static bool exec_consume_standalone(struct sfdo_desktop_exec_scanner *scanner, c
 	return true;
 }
 
-static bool exec_set_target(struct sfdo_desktop_exec_scanner *scanner, char code) {
-	struct sfdo_desktop_exec *dst = scanner->dst;
-
-	struct sfdo_desktop_db *db = scanner->db;
+static enum sfdo_desktop_entry_load_result exec_add_unquoted(struct sfdo_desktop_loader *loader) {
+	struct sfdo_desktop_db *db = loader->db;
 	struct sfdo_logger *logger = &db->ctx->logger;
+	struct sfdo_desktop_exec_scanner *scanner = &loader->exec;
 
-	if (dst->target_i != (size_t)-1) {
-		logger_write(logger, SFDO_LOG_LEVEL_ERROR,
-				"%d:%d: a command line must not have multiple target field codes", scanner->line,
-				scanner->column);
-		return false;
-	}
-	dst->target_i = scanner->n_literals;
+	struct sfdo_desktop_entry *entry = scanner->entry;
 
-	dst->supports_uri = code == 'u' || code == 'U';
-	dst->supports_list = code == 'F' || code == 'U';
-
-	return true;
-}
-
-static bool exec_scan_quoted(struct sfdo_desktop_exec_scanner *scanner) {
-	struct sfdo_desktop_db *db = scanner->db;
-	struct sfdo_logger *logger = &db->ctx->logger;
-
-	++scanner->i; // Skip the quote
-
-	bool escape = false;
-	size_t escape_i;
-	while (true) {
-		if (scanner->i == scanner->len) {
-			logger_write(logger, SFDO_LOG_LEVEL_ERROR, "%d:%d: unclosed quote", scanner->line,
-					scanner->column);
-			return false;
-		}
-		char c = scanner->exec[scanner->i];
-		if (escape) {
-			escape = false;
-			if (!exec_needs_escape(c)) {
-				logger_write(logger, SFDO_LOG_LEVEL_ERROR,
-						"%d:%d: invalid escape sequence at position %zu", scanner->line,
-						scanner->column, escape_i);
-				return false;
-			}
-		} else if (c == '"') {
-			break;
-		} else if (c == '\\') {
-			escape = true;
-			escape_i = scanner->i;
-		} else if (c == '%') {
-			logger_write(logger, SFDO_LOG_LEVEL_ERROR,
-					"%d:%d: field codes must not appear in quoted arguments", scanner->line,
-					scanner->column);
-			return false;
-		} else if (exec_needs_escape(c)) {
-			logger_write(logger, SFDO_LOG_LEVEL_ERROR, "%d:%d: unescaped %c at position %zu",
-					scanner->line, scanner->column, c, scanner->i);
-			return false;
-		} else if (c == '=') {
-			if (scanner->n_literals == 0) {
-				// First arg
-				logger_write(logger, SFDO_LOG_LEVEL_ERROR,
-						"%d:%d: \"=\" must not appear in the executable path", scanner->line,
-						scanner->column);
-				return false;
-			}
-		}
-		++scanner->i;
-	}
-
-	++scanner->i; // Skip the quote
-
-	++scanner->n_literals;
-	return true;
-}
-
-static bool exec_scan_unquoted(struct sfdo_desktop_exec_scanner *scanner) {
-	struct sfdo_desktop_db *db = scanner->db;
-	struct sfdo_logger *logger = &db->ctx->logger;
+	enum sfdo_desktop_entry_load_result r = SFDO_DESKTOP_ENTRY_LOAD_OK;
 
 	size_t field_i = scanner->i;
 
 	char standalone;
-	if (exec_consume_standalone(scanner, &standalone)) {
+	if (exec_try_consume_standalone(scanner, &standalone)) {
 		switch (standalone) {
 		case 'f':
 		case 'u':
 		case 'F':
 		case 'U':
-			if (!exec_set_target(scanner, standalone)) {
-				return false;
+			if ((r = exec_set_target(loader, standalone)) != SFDO_DESKTOP_ENTRY_LOAD_OK) {
+				return r;
 			}
 			break;
 		case 'i':
 			if (scanner->entry->icon.data != NULL) {
-				// --icon <icon>
-				scanner->n_literals += 2;
+				if ((r = exec_add_literal(loader, "--icon")) != SFDO_DESKTOP_ENTRY_LOAD_OK) {
+					return r;
+				}
+				if ((r = exec_add_literal(loader, entry->icon.data)) !=
+						SFDO_DESKTOP_ENTRY_LOAD_OK) {
+					return r;
+				}
 			}
 			break;
 		case '%':
+			if ((r = exec_add_literal(loader, "%")) != SFDO_DESKTOP_ENTRY_LOAD_OK) {
+				return r;
+			}
+			break;
 		case 'c':
+			if ((r = exec_add_literal(loader, entry->name.data)) != SFDO_DESKTOP_ENTRY_LOAD_OK) {
+				return r;
+			}
+			break;
 		case 'k':
-			++scanner->n_literals;
+			if ((r = exec_add_literal(loader, entry->file_path.data)) !=
+					SFDO_DESKTOP_ENTRY_LOAD_OK) {
+				return r;
+			}
 			break;
 		default:
 			if (!exec_is_deprecated_field_code(standalone)) {
 				goto err_invalid_field_code;
 			}
-			++scanner->n_literals;
+			if ((r = exec_add_literal(loader, "")) != SFDO_DESKTOP_ENTRY_LOAD_OK) {
+				return r;
+			}
 			break;
 		}
-		return true;
+		return SFDO_DESKTOP_ENTRY_LOAD_OK;
 	}
 
+	struct sfdo_desktop_exec *dst = scanner->dst;
+
 	bool field = false;
-	while (scanner->i != scanner->len) {
-		char c = scanner->exec[scanner->i];
+	bool has_target = false;
+	while (scanner->i < scanner->data_len) {
+		char c = scanner->data[scanner->i];
 		if (field) {
 			field = false;
 			switch (c) {
 			case 'f':
 			case 'u':
-				if (!exec_set_target(scanner, c)) {
-					return false;
+				if ((r = exec_set_target(loader, c)) != SFDO_DESKTOP_ENTRY_LOAD_OK) {
+					return r;
 				}
+				assert(!has_target);
+				assert(dst->embed.before == 0 && dst->embed.after == 0);
+				has_target = true;
+				dst->embed.before = scanner->buf_len;
 				break;
 			case 'F':
 			case 'U':
@@ -507,10 +631,22 @@ static bool exec_scan_unquoted(struct sfdo_desktop_exec_scanner *scanner) {
 				logger_write(logger, SFDO_LOG_LEVEL_ERROR,
 						"%d:%d: field code at position %zu must be standalone", scanner->line,
 						scanner->column, field_i);
-				return false;
+				return SFDO_DESKTOP_ENTRY_LOAD_ERROR;
 			case '%':
+				if ((r = exec_add_byte(loader, c)) != SFDO_DESKTOP_ENTRY_LOAD_OK) {
+					return r;
+				}
+				break;
 			case 'c':
+				if ((r = exec_add_string(loader, &entry->name)) != SFDO_DESKTOP_ENTRY_LOAD_OK) {
+					return r;
+				}
+				break;
 			case 'k':
+				if ((r = exec_add_string(loader, &entry->file_path)) !=
+						SFDO_DESKTOP_ENTRY_LOAD_OK) {
+					return r;
+				}
 				break;
 			default:
 				if (!exec_is_deprecated_field_code(standalone)) {
@@ -523,274 +659,114 @@ static bool exec_scan_unquoted(struct sfdo_desktop_exec_scanner *scanner) {
 		} else if (c == '%') {
 			field = true;
 			field_i = scanner->i;
-		} else if (c == '=') {
-			if (scanner->n_literals == 0) {
-				// First arg
-				logger_write(logger, SFDO_LOG_LEVEL_ERROR,
-						"%d:%d: \"=\" must not appear in the executable path", scanner->line,
-						scanner->column);
-				return false;
-			}
 		} else if (exec_is_reserved(c)) {
 			logger_write(logger, SFDO_LOG_LEVEL_ERROR,
 					"%d:%d: reserved character in a unquoted arg at position %zu", scanner->line,
 					scanner->column, scanner->i);
-			return false;
+			return SFDO_DESKTOP_ENTRY_LOAD_ERROR;
+		} else if (c == '=' && scanner->lit_buf_len == 0) {
+			// TODO: dedup
+			logger_write(logger, SFDO_LOG_LEVEL_ERROR,
+					"%d:%d: \"=\" must not appear in the executable path", scanner->line,
+					scanner->column);
+			return SFDO_DESKTOP_ENTRY_LOAD_ERROR;
+		} else {
+			if ((r = exec_add_byte(loader, c)) != SFDO_DESKTOP_ENTRY_LOAD_OK) {
+				return r;
+			}
 		}
+
 		++scanner->i;
 	}
+
 	if (field) {
-		logger_write(logger, SFDO_LOG_LEVEL_ERROR, "%d:%d: stray %% in the end", scanner->line,
-				scanner->column);
-		return false;
+		logger_write(logger, SFDO_LOG_LEVEL_ERROR, "%d:%d: truncated field code at position %zu",
+				scanner->line, scanner->column, field_i);
+		return SFDO_DESKTOP_ENTRY_LOAD_ERROR;
 	}
 
-	++scanner->n_literals;
-	return true;
+	if (has_target) {
+		dst->embed.after = scanner->buf_len - dst->embed.before;
+		assert(dst->embed.before != 0 || dst->embed.after != 0);
+	}
+
+	if ((r = exec_save_literal(loader)) != SFDO_DESKTOP_ENTRY_LOAD_OK) {
+		return r;
+	}
+
+	return SFDO_DESKTOP_ENTRY_LOAD_OK;
 
 err_invalid_field_code:
 	logger_write(logger, SFDO_LOG_LEVEL_ERROR, "%d:%d: invalid field code at position %zu",
 			scanner->line, scanner->column, field_i);
-	return false;
+	return SFDO_DESKTOP_ENTRY_LOAD_ERROR;
 }
 
-static bool exec_add_byte(struct sfdo_desktop_exec_scanner *scanner, char c, size_t *len) {
-	if (*len == scanner->buf_cap && !sfdo_grow(&scanner->buf, &scanner->buf_cap, 1)) {
-		return false;
-	}
-	scanner->buf[(*len)++] = c;
-	return true;
-}
-
-static bool exec_add_string(
-		struct sfdo_desktop_exec_scanner *scanner, struct sfdo_string *str, size_t *len) {
-	while (*len + str->len > scanner->buf_cap) {
-		if (!sfdo_grow(&scanner->buf, &scanner->buf_cap, 1)) {
-			return false;
-		}
-	}
-	memcpy(&scanner->buf[*len], str->data, str->len);
-	*len += str->len;
-	return true;
-}
-
-static bool exec_add_quoted(struct sfdo_desktop_exec_scanner *scanner) {
-	struct sfdo_desktop_exec *dst = scanner->dst;
-	struct sfdo_desktop_db *db = scanner->db;
-
-	++scanner->i; // Skip the quote
-
-	size_t len = 0;
+static bool exec_find_arg(struct sfdo_desktop_exec_scanner *scanner) {
 	while (true) {
-		assert(scanner->i < scanner->len);
-		char c = scanner->exec[scanner->i];
-		if (c == '"') {
-			break;
-		} else if (c == '\\') {
-			++scanner->i;
-			c = scanner->exec[scanner->i];
-		}
-		if (!exec_add_byte(scanner, c, &len)) {
+		if (scanner->i == scanner->data_len) {
 			return false;
+		} else if (!exec_is_ws(scanner->data[scanner->i])) {
+			return true;
 		}
 		++scanner->i;
 	}
-
-	if (!exec_add_byte(scanner, '\0', &len)) {
-		return false;
-	}
-
-	char *owned = sfdo_strpool_add(&db->strings, scanner->buf, len);
-	if (owned == NULL) {
-		return false;
-	}
-
-	++scanner->i; // Skip the quote
-
-	dst->literals[scanner->n_literals++] = owned;
-	return true;
 }
 
-static bool exec_add_unquoted(struct sfdo_desktop_exec_scanner *scanner) {
-	struct sfdo_desktop_exec *dst = scanner->dst;
-	struct sfdo_desktop_db *db = scanner->db;
-	struct sfdo_desktop_entry *entry = scanner->entry;
-
-	char standalone;
-	if (exec_consume_standalone(scanner, &standalone)) {
-		switch (standalone) {
-		case 'f':
-		case 'u':
-		case 'F':
-		case 'U':
-			break;
-		case 'i':
-			if (entry->icon.data != NULL) {
-				dst->literals[scanner->n_literals++] = "--icon";
-				dst->literals[scanner->n_literals++] = entry->icon.data;
-			}
-			break;
-		case '%':
-			dst->literals[scanner->n_literals++] = "%";
-			break;
-		case 'c':
-			dst->literals[scanner->n_literals++] = entry->name.data;
-			break;
-		case 'k':
-			dst->literals[scanner->n_literals++] = entry->file_path.data;
-			break;
-		default:
-			assert(exec_is_deprecated_field_code(standalone));
-			dst->literals[scanner->n_literals++] = "";
-			break;
-		}
-		return true;
-	}
-
-	bool has_target = true;
-	size_t len = 0;
-	while (scanner->i < scanner->len) {
-		char c = scanner->exec[scanner->i];
-		if (exec_is_ws(c)) {
-			break;
-		} else if (c == '%') {
-			++scanner->i;
-			c = scanner->exec[scanner->i];
-			switch (c) {
-			case 'f':
-			case 'u':
-				assert(!has_target);
-				assert(dst->embed.before == 0 && dst->embed.after == 0);
-				has_target = true;
-				dst->embed.before = len;
-				break;
-			case '%':
-				if (!exec_add_byte(scanner, c, &len)) {
-					return false;
-				}
-				break;
-			case 'c':
-				if (!exec_add_string(scanner, &entry->name, &len)) {
-					return false;
-				}
-				break;
-			case 'k':
-				if (!exec_add_string(scanner, &entry->file_path, &len)) {
-					return false;
-				}
-				break;
-			default:
-				break;
-			}
-		} else {
-			if (!exec_add_byte(scanner, c, &len)) {
-				return false;
-			}
-		}
-		++scanner->i;
-	}
-
-	if (!exec_add_byte(scanner, '\0', &len)) {
-		return false;
-	}
-
-	char *owned = sfdo_strpool_add(&db->strings, scanner->buf, len);
-	if (owned == NULL) {
-		return false;
-	}
-
-	if (has_target) {
-		dst->embed.after = len - dst->embed.before;
-		assert(dst->embed.before != 0 || dst->embed.after != 0);
-	}
-
-	dst->literals[scanner->n_literals++] = owned;
-	return true;
-}
-
-static enum sfdo_desktop_entry_load_result load_exec(struct sfdo_desktop_loader *loader,
+static void exec_scanner_start(struct sfdo_desktop_exec_scanner *scanner,
 		struct sfdo_desktop_file_entry *file_entry, struct sfdo_desktop_entry *entry,
 		struct sfdo_desktop_exec *dst) {
-	size_t exec_len;
-	const char *exec = sfdo_desktop_file_entry_get_value(file_entry, &exec_len);
-	int exec_line, exec_column;
-	sfdo_desktop_file_entry_get_location(file_entry, &exec_line, &exec_column);
+	scanner->entry = entry;
 
-	struct sfdo_desktop_db *db = loader->db;
-	struct sfdo_logger *logger = &db->ctx->logger;
+	scanner->data = sfdo_desktop_file_entry_get_value(file_entry, &scanner->data_len);
+	sfdo_desktop_file_entry_get_location(file_entry, &scanner->line, &scanner->column);
+
+	scanner->dst = dst;
+
+	scanner->i = 0;
+
+	scanner->buf_len = 0;
+	scanner->lit_buf_len = 0;
 
 	*dst = (struct sfdo_desktop_exec){
 		.literals = NULL,
 		.target_i = (size_t)-1,
 	};
+}
 
-	struct sfdo_desktop_exec_scanner scanner = {
-		.db = db,
-		.entry = entry,
-		.exec = exec,
-		.len = exec_len,
-		.line = exec_line,
-		.column = exec_column,
-		.dst = dst,
-		.i = 0,
-		.n_literals = 0,
-	};
+static enum sfdo_desktop_entry_load_result load_exec(struct sfdo_desktop_loader *loader,
+		struct sfdo_desktop_file_entry *file_entry, struct sfdo_desktop_entry *entry,
+		struct sfdo_desktop_exec *dst) {
+	struct sfdo_desktop_db *db = loader->db;
+	struct sfdo_logger *logger = &db->ctx->logger;
+	struct sfdo_desktop_exec_scanner *scanner = &loader->exec;
 
-	bool ok;
+	exec_scanner_start(scanner, file_entry, entry, dst);
 
-	while (true) {
-		exec_skip_ws(&scanner);
-		if (scanner.i == scanner.len) {
-			break;
-		} else if (exec[scanner.i] == '"') {
-			ok = exec_scan_quoted(&scanner);
+	enum sfdo_desktop_entry_load_result r = SFDO_DESKTOP_ENTRY_LOAD_OK;
+
+	while (exec_find_arg(scanner)) {
+		scanner->buf_len = 0;
+
+		if (scanner->data[scanner->i] == '"') {
+			r = exec_add_quoted(loader);
 		} else {
-			ok = exec_scan_unquoted(&scanner);
+			r = exec_add_unquoted(loader);
 		}
-		if (!ok) {
-			return SFDO_DESKTOP_ENTRY_LOAD_ERROR;
+
+		if (r != SFDO_DESKTOP_ENTRY_LOAD_OK) {
+			return r;
 		}
 	}
 
-	if (scanner.n_literals == 0) {
-		logger_write(logger, SFDO_LOG_LEVEL_ERROR, "%d:%d: a command line must not be empty",
-				exec_line, exec_column);
-		return SFDO_DESKTOP_ENTRY_LOAD_ERROR;
-	}
-
-	dst->n_literals = scanner.n_literals;
+	dst->n_literals = scanner->lit_buf_len;
 	dst->literals = calloc(dst->n_literals, sizeof(const char *));
 	if (dst->literals == NULL) {
 		logger_write_oom(logger);
 		return SFDO_DESKTOP_ENTRY_LOAD_OOM;
 	}
 
-	// Reset the scanner
-	scanner.i = 0;
-	scanner.n_literals = 0;
-
-	while (true) {
-		exec_skip_ws(&scanner);
-		if (scanner.i == scanner.len) {
-			break;
-		} else if (exec[scanner.i] == '"') {
-			ok = exec_add_quoted(&scanner);
-		} else {
-			ok = exec_add_unquoted(&scanner);
-		}
-		if (!ok) {
-			break;
-		}
-	}
-
-	assert(scanner.n_literals == dst->n_literals);
-
-	free(scanner.buf);
-	if (!ok) {
-		logger_write_oom(logger);
-		return SFDO_DESKTOP_ENTRY_LOAD_OOM;
-	}
-
+	memcpy(dst->literals, scanner->lit_buf, sizeof(const char *) * dst->n_literals);
 	return SFDO_DESKTOP_ENTRY_LOAD_OK;
 }
 
@@ -806,7 +782,7 @@ static enum sfdo_desktop_entry_load_result load_show_in(struct sfdo_desktop_load
 
 	const char *value;
 
-	enum sfdo_desktop_entry_load_result r = SFDO_DESKTOP_ENTRY_LOAD_ERROR;
+	enum sfdo_desktop_entry_load_result r = SFDO_DESKTOP_ENTRY_LOAD_OK;
 
 	if (yes_entry != NULL) {
 		d_entry->default_show = false;
@@ -1354,6 +1330,11 @@ SFDO_API struct sfdo_desktop_db *sfdo_desktop_db_load_from(struct sfdo_desktop_c
 end:
 	sfdo_strbuild_finish(pb);
 	sfdo_strbuild_finish(ib);
+
+	struct sfdo_desktop_exec_scanner *exec_scanner = &loader.exec;
+
+	free(exec_scanner->buf);
+	free(exec_scanner->lit_buf);
 
 	if (ok) {
 		return db;
