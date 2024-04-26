@@ -27,8 +27,6 @@ struct sfdo_icon_subdir_group {
 };
 
 struct sfdo_icon_loader {
-	// Per-theme
-
 	struct sfdo_icon_theme *theme;
 	struct sfdo_hashmap seen_nodes; // sfdo_hashmap_entry
 	struct sfdo_icon_scheduled_node *scheduled_nodes; // Owned
