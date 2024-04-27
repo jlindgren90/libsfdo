@@ -186,22 +186,22 @@ SFDO_API bool sfdo_desktop_exec_get_supports_uri(struct sfdo_desktop_exec *exec)
 }
 
 SFDO_API struct sfdo_desktop_exec_command *sfdo_desktop_exec_format(
-		struct sfdo_desktop_exec *exec, const char *uri) {
-	return sfdo_desktop_exec_format_list(exec, &uri, 1);
+		struct sfdo_desktop_exec *exec, const char *path) {
+	return sfdo_desktop_exec_format_list(exec, &path, 1);
 }
 
 SFDO_API struct sfdo_desktop_exec_command *sfdo_desktop_exec_format_list(
-		struct sfdo_desktop_exec *exec, const char **uris, size_t n_uris) {
+		struct sfdo_desktop_exec *exec, const char **paths, size_t n_paths) {
 	bool has_target = sfdo_desktop_exec_get_has_target(exec);
 	bool embed_single = exec->embed.before > 0 || exec->embed.after > 0;
 
 	size_t n_args = exec->n_literals;
 	if (has_target && !embed_single) {
-		if (!exec->supports_list && n_uris > 1) {
+		if (!exec->supports_list && n_paths > 1) {
 			// Only use the first target
-			n_uris = 1;
+			n_paths = 1;
 		}
-		n_args += n_uris;
+		n_args += n_paths;
 	}
 
 	struct sfdo_desktop_exec_command *cmd = calloc(1, sizeof(*cmd));
@@ -222,9 +222,9 @@ SFDO_API struct sfdo_desktop_exec_command *sfdo_desktop_exec_format_list(
 		while (src_i < exec->target_i) {
 			cmd->args[dst_i++] = exec->literals[src_i++];
 		}
-		if (embed_single && n_uris > 0) {
+		if (embed_single && n_paths > 0) {
 			const char *embed_src = exec->literals[src_i++];
-			const char *uri = uris[0];
+			const char *uri = paths[0];
 			size_t uri_len = strlen(uri);
 
 			cmd->embedded_mem = malloc(exec->embed.before + exec->embed.after + uri_len + 1);
@@ -243,8 +243,8 @@ SFDO_API struct sfdo_desktop_exec_command *sfdo_desktop_exec_format_list(
 
 			cmd->args[dst_i++] = cmd->embedded_mem;
 		} else {
-			for (size_t i = 0; i < n_uris; i++) {
-				cmd->args[dst_i++] = uris[i];
+			for (size_t i = 0; i < n_paths; i++) {
+				cmd->args[dst_i++] = paths[i];
 			}
 		}
 		while (src_i < exec->n_literals) {

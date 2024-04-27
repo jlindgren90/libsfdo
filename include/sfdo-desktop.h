@@ -117,10 +117,10 @@ bool sfdo_desktop_exec_get_supports_list(struct sfdo_desktop_exec *exec);
 bool sfdo_desktop_exec_get_supports_uri(struct sfdo_desktop_exec *exec);
 
 struct sfdo_desktop_exec_command *sfdo_desktop_exec_format(
-		struct sfdo_desktop_exec *exec, const char *uri);
+		struct sfdo_desktop_exec *exec, const char *path);
 
 struct sfdo_desktop_exec_command *sfdo_desktop_exec_format_list(
-		struct sfdo_desktop_exec *exec, const char **uris, size_t n_uris);
+		struct sfdo_desktop_exec *exec, const char **paths, size_t n_paths);
 
 const char **sfdo_desktop_exec_command_get_args(
 		struct sfdo_desktop_exec_command *command, size_t *n_args);
