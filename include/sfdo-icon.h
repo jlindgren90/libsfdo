@@ -9,7 +9,7 @@
 //  https://specifications.freedesktop.org/icon-theme-spec/icon-theme-spec-latest.html
 //
 // Note that the icon lookup algorithm used by libsfdo-icon doesn't match the specification;
-// instead, an algorihtm similar to GTK's is used as results in better matches.
+// instead, an algorithm similar to GTK's is used as it results in better matches.
 
 struct sfdo_basedir_ctx;
 
@@ -29,7 +29,10 @@ enum sfdo_icon_theme_load_options {
 	// The default icon theme loading options.
 	SFDO_ICON_THEME_LOAD_OPTIONS_DEFAULT = 0,
 
-	// If this flag is set, the loader will allow
+	// If this flag is set, the loader will impose less restrictions on the format of icon theme
+	// files. This option only exists because there are too many non-conformant themes in the wild.
+	// It is advised that you don't set this flag by default and instead offer a way for a user to
+	// set it manually.
 	SFDO_ICON_THEME_LOAD_OPTION_RELAXED = 1 << 0,
 };
 
