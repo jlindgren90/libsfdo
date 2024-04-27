@@ -23,7 +23,7 @@ enum sfdo_desktop_entry_exec_flags {
 };
 
 struct sfdo_desktop_exec {
-	const char **literals;
+	const char **literals; // NULL if unset
 	size_t n_literals;
 	// If EMBED_SINGLE is set, target_i is the index of a literal the target is embedded into
 	// Otherwise, targets are inserted immediately before the literal at target_i

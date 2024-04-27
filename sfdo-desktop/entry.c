@@ -73,6 +73,9 @@ SFDO_API const char *sfdo_desktop_entry_get_try_exec(
 
 SFDO_API struct sfdo_desktop_exec *sfdo_desktop_entry_get_exec(struct sfdo_desktop_entry *entry) {
 	assert(entry->type == SFDO_DESKTOP_ENTRY_APPLICATION);
+	if (entry->app.exec.literals == NULL) {
+		return NULL;
+	}
 	return &entry->app.exec;
 }
 
@@ -164,6 +167,9 @@ SFDO_API const char *sfdo_desktop_entry_action_get_icon(
 
 SFDO_API struct sfdo_desktop_exec *sfdo_desktop_entry_action_get_exec(
 		struct sfdo_desktop_entry_action *action) {
+	if (action->exec.literals == NULL) {
+		return NULL;
+	}
 	return &action->exec;
 }
 

@@ -32,16 +32,20 @@ static void print_str(const char *name, const char *str, size_t str_len) {
 
 static void print_exec(const char *name, struct sfdo_desktop_exec *exec) {
 	printf("%s: <", name);
-	if (sfdo_desktop_exec_get_has_target(exec)) {
-		printf("has target");
-		if (sfdo_desktop_exec_get_supports_list(exec)) {
-			printf(", supports lists");
-		}
-		if (sfdo_desktop_exec_get_supports_uri(exec)) {
-			printf(", supports URIs");
+	if (exec != NULL) {
+		if (sfdo_desktop_exec_get_has_target(exec)) {
+			printf("has target");
+			if (sfdo_desktop_exec_get_supports_list(exec)) {
+				printf(", supports lists");
+			}
+			if (sfdo_desktop_exec_get_supports_uri(exec)) {
+				printf(", supports URIs");
+			}
+		} else {
+			printf("has no target");
 		}
 	} else {
-		printf("has no target");
+		printf("none");
 	}
 	printf(">\n");
 }
