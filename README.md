@@ -2,7 +2,7 @@
 
 A collection of libraries which implement some of [the Freedesktop.org specifications].
 
-See respective header files for documentation (TODO).
+See respective header files for documentation.
 
 Discuss in [#eclairs on Libera.Chat].
 
