@@ -15,6 +15,10 @@ void logger_setup(struct sfdo_logger *logger) {
 
 void logger_configure(struct sfdo_logger *logger, enum sfdo_log_level level,
 		sfdo_log_handler_func_t func, void *data) {
+	if (func == NULL) {
+		func = noop_handler;
+	}
+
 	logger->level = level;
 	logger->func = func;
 	logger->data = data;
