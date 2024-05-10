@@ -180,7 +180,10 @@ static bool scan_dir(struct sfdo_icon_scanner *scanner, const char *path,
 	}
 
 	ok = true;
-	logger_write(logger, SFDO_LOG_LEVEL_DEBUG, "Added %zu image(s) from %s", image_set.len, path);
+	if (image_set.len > 0) {
+		logger_write(
+				logger, SFDO_LOG_LEVEL_DEBUG, "Added %zu image(s) from %s", image_set.len, path);
+	}
 
 end:
 	sfdo_hashmap_finish(&image_set);
