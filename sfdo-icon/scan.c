@@ -1,4 +1,5 @@
 #include <dirent.h>
+#include <errno.h>
 #include <sfdo-icon.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -24,6 +25,7 @@ static void check_dir_stats(struct sfdo_icon_state *state, size_t dir_i, const c
 		state->dir_mtimes[dir_i] = statbuf.st_mtime;
 	} else {
 		state->dir_exists[dir_i] = false;
+		state->dir_mtimes[dir_i] = 0;
 	}
 }
 
@@ -112,15 +114,14 @@ bool icon_scanner_add_image(struct sfdo_icon_scanner *scanner, const struct sfdo
 }
 
 static bool scan_dir(struct sfdo_icon_scanner *scanner, const char *path,
-		const struct sfdo_string *basedir, const struct sfdo_icon_subdir *subdir, size_t dir_i) {
+		const struct sfdo_string *basedir, const struct sfdo_icon_subdir *subdir) {
 	struct sfdo_logger *logger = scanner->logger;
-
-	check_dir_stats(&scanner->state, dir_i, path);
 
 	DIR *dirp = opendir(path);
 	if (dirp == NULL) {
-		// Nothing to scan
-		return true;
+		logger_write(logger, SFDO_LOG_LEVEL_ERROR, "Failed to open directory %s: %s", path,
+				strerror(errno));
+		return false;
 	}
 
 	struct sfdo_hashmap image_set;
@@ -239,10 +240,23 @@ static bool rescan_node(struct sfdo_icon_theme_node *node, struct sfdo_icon_them
 			if (!scanner.state.dir_exists[basedir_i]) {
 				// If the /<basedir>/<theme>/ doesn't exist, its subdirs don't exist either
 				scanner.state.dir_exists[dir_i] = false;
+				scanner.state.dir_mtimes[dir_i] = 0;
 				continue;
 			}
 
 			struct sfdo_string *basedir = &theme->basedirs[basedir_i];
+
+			sfdo_strbuild_reset(pb);
+			if (!sfdo_strbuild_add(pb, basedir->data, basedir->len, node->name, node->name_len, "/",
+						1, subdir->path.data, subdir->path.len, NULL)) {
+				logger_write_oom(logger);
+				return false;
+			}
+
+			check_dir_stats(&scanner.state, dir_i, pb->data);
+			if (!scanner.state.dir_exists[dir_i]) {
+				continue;
+			}
 
 			struct sfdo_icon_cache *cache_file = cache_files[basedir_i];
 			if (cache_file != NULL) {
@@ -252,14 +266,7 @@ static bool rescan_node(struct sfdo_icon_theme_node *node, struct sfdo_icon_them
 				continue;
 			}
 
-			sfdo_strbuild_reset(pb);
-			if (!sfdo_strbuild_add(pb, basedir->data, basedir->len, node->name, node->name_len, "/",
-						1, subdir->path.data, subdir->path.len, NULL)) {
-				logger_write_oom(logger);
-				return false;
-			}
-
-			if (!scan_dir(&scanner, pb->data, basedir, subdir, dir_i)) {
+			if (!scan_dir(&scanner, pb->data, basedir, subdir)) {
 				goto end;
 			}
 		}
@@ -299,7 +306,11 @@ static bool rescan_fallback(struct sfdo_icon_theme *theme) {
 
 	for (size_t basedir_i = 0; basedir_i < theme->n_basedirs; basedir_i++) {
 		struct sfdo_string *basedir = &theme->basedirs[basedir_i];
-		if (!scan_dir(&scanner, basedir->data, basedir, NULL, basedir_i)) {
+		check_dir_stats(&scanner.state, basedir_i, basedir->data);
+		if (!scanner.state.dir_exists[basedir_i]) {
+			continue;
+		}
+		if (!scan_dir(&scanner, basedir->data, basedir, NULL)) {
 			goto end;
 		}
 	}
@@ -332,17 +343,28 @@ static bool rescan_theme(struct sfdo_icon_theme *theme) {
 	return true;
 }
 
-static bool dir_is_stale(const struct sfdo_icon_state *state, const char *buf, size_t dir_i) {
+static bool dir_is_stale(const struct sfdo_icon_state *state, struct sfdo_icon_theme *theme,
+		const char *path, size_t dir_i) {
+	struct sfdo_logger *logger = &theme->ctx->logger;
+
 	bool exists = false;
-	time_t mtime;
+	time_t mtime = 0;
 	struct stat statbuf;
-	if (stat(buf, &statbuf) == 0 && S_ISDIR(statbuf.st_mode)) {
+	if (stat(path, &statbuf) == 0 && S_ISDIR(statbuf.st_mode)) {
 		exists = true;
 		mtime = statbuf.st_mtime;
 	}
 	bool c_exists = state->dir_exists[dir_i];
 	time_t c_mtime = state->dir_mtimes[dir_i];
-	return exists != c_exists || (exists && mtime != c_mtime);
+
+	if (exists != c_exists || (exists && mtime != c_mtime)) {
+		logger_write(logger, SFDO_LOG_LEVEL_DEBUG, "%s is stale: old=%s,%lld new=%s,%lld", path,
+				c_exists ? "yes" : "no", (long long)c_mtime, exists ? "yes" : "no",
+				(long long)mtime);
+		return true;
+	}
+
+	return false;
 }
 
 static bool node_check_stale(
@@ -363,8 +385,7 @@ static bool node_check_stale(
 			return false;
 		}
 
-		if (dir_is_stale(&node->state, pb->data, dir_i++)) {
-			logger_write(logger, SFDO_LOG_LEVEL_DEBUG, "%s is stale", pb->data);
+		if (dir_is_stale(&node->state, theme, pb->data, dir_i)) {
 			*out = true;
 			return true;
 		}
@@ -389,8 +410,7 @@ static bool node_check_stale(
 				return false;
 			}
 
-			if (dir_is_stale(&node->state, pb->data, dir_i)) {
-				logger_write(logger, SFDO_LOG_LEVEL_DEBUG, "%s is stale", pb->data);
+			if (dir_is_stale(&node->state, theme, pb->data, dir_i)) {
 				*out = true;
 				return true;
 			}
@@ -403,8 +423,6 @@ static bool node_check_stale(
 
 // Returns true on success, false otherwise
 bool icon_theme_maybe_rescan(struct sfdo_icon_theme *theme) {
-	struct sfdo_logger *logger = &theme->ctx->logger;
-
 	struct timespec now;
 	clock_gettime(CLOCK_MONOTONIC, &now);
 
@@ -418,8 +436,7 @@ bool icon_theme_maybe_rescan(struct sfdo_icon_theme *theme) {
 
 	for (size_t basedir_i = 0; basedir_i < theme->n_basedirs; basedir_i++) {
 		struct sfdo_string *basedir = &theme->basedirs[basedir_i];
-		if (dir_is_stale(&theme->state, basedir->data, basedir_i)) {
-			logger_write(logger, SFDO_LOG_LEVEL_DEBUG, "%s is stale", basedir->data);
+		if (dir_is_stale(&theme->state, theme, basedir->data, basedir_i)) {
 			return rescan_theme(theme);
 		}
 	}
