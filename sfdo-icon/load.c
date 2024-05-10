@@ -583,6 +583,10 @@ SFDO_API struct sfdo_icon_theme *sfdo_icon_theme_load_from(struct sfdo_icon_ctx 
 		return NULL;
 	}
 
+	if (name == NULL) {
+		name = DEFAULT_THEME_NAME;
+	}
+
 	if (!load_theme(theme, name, options)) {
 		goto err;
 	}

@@ -65,6 +65,8 @@ void sfdo_icon_ctx_set_log_handler(struct sfdo_icon_ctx *ctx, enum sfdo_log_leve
 
 // Load an icon theme by a name from the default list of paths.
 //
+// name may be NULL, in which case the default icon theme will be loaded.
+//
 // options is a result of bitwise OR of zero or more enum sfdo_icon_theme_load_options values.
 //
 // Returns NULL on memory allocation error.
@@ -72,6 +74,8 @@ struct sfdo_icon_theme *sfdo_icon_theme_load(
 		struct sfdo_icon_ctx *ctx, const char *name, int options);
 
 // Load an icon theme by a name.
+//
+// name may be NULL, in which case the default icon theme will be loaded.
 //
 // options is a result of bitwise OR of zero or more enum sfdo_icon_theme_load_options values.
 //
