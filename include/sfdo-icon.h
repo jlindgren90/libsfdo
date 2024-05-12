@@ -34,6 +34,10 @@ enum sfdo_icon_theme_load_options {
 	// It is advised that you don't set this flag by default and instead offer a way for a user to
 	// set it manually.
 	SFDO_ICON_THEME_LOAD_OPTION_RELAXED = 1 << 0,
+
+	// If this flag is set, the loader will continue loading even if it fails to find a theme or one
+	// of its dependencies.
+	SFDO_ICON_THEME_LOAD_OPTION_ALLOW_MISSING = 1 << 1,
 };
 
 enum sfdo_icon_theme_lookup_options {

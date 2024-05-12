@@ -33,6 +33,7 @@ struct sfdo_icon_loader {
 	struct sfdo_icon_scheduled_node *curr_node;
 
 	bool relaxed;
+	bool allow_missing;
 };
 
 // Returns 0 on error
@@ -417,10 +418,10 @@ static bool load_node(struct sfdo_icon_loader *loader, struct sfdo_icon_schedule
 	}
 
 	if (fp == NULL) {
-		logger_write(logger, SFDO_LOG_LEVEL_INFO,
-				"Couldn't find an icon theme file for %s, skipping", s_node->name);
+		logger_write(logger, loader->allow_missing ? SFDO_LOG_LEVEL_INFO : SFDO_LOG_LEVEL_ERROR,
+				"Couldn't find an icon theme file for %s", s_node->name);
 		*out = NULL;
-		return true;
+		return loader->allow_missing;
 	}
 
 	int df_options = SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT;
@@ -454,6 +455,7 @@ static bool load_theme(struct sfdo_icon_theme *theme, const char *name, int opti
 	struct sfdo_icon_loader loader = {
 		.theme = theme,
 		.relaxed = (options & SFDO_ICON_THEME_LOAD_OPTION_RELAXED) != 0,
+		.allow_missing = (options & SFDO_ICON_THEME_LOAD_OPTION_ALLOW_MISSING) != 0,
 	};
 	sfdo_hashmap_init(&loader.seen_nodes, sizeof(struct sfdo_hashmap_entry));
 
