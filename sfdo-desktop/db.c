@@ -303,11 +303,11 @@ static enum sfdo_desktop_entry_load_result load_actions(struct sfdo_desktop_load
 	return SFDO_DESKTOP_ENTRY_LOAD_OK;
 }
 
-static bool exec_is_ws(char c) {
+static bool exec_char_is_ws(char c) {
 	return c == ' ' || c == '\t';
 }
 
-static bool exec_is_reserved(char c) {
+static bool exec_char_is_reserved(char c) {
 	switch (c) {
 	case ' ':
 	case '\t':
@@ -334,7 +334,7 @@ static bool exec_is_reserved(char c) {
 	}
 }
 
-static bool exec_needs_escape(char c) {
+static bool exec_char_needs_escape(char c) {
 	switch (c) {
 	case '"':
 	case '`':
@@ -346,7 +346,7 @@ static bool exec_needs_escape(char c) {
 	}
 }
 
-static bool exec_is_deprecated_field_code(char c) {
+static bool exec_char_is_deprecated_field_code(char c) {
 	switch (c) {
 	case 'd':
 	case 'D':
@@ -374,13 +374,13 @@ static enum sfdo_desktop_entry_load_result exec_validate_character(
 	}
 
 	if (quoted) {
-		if (exec_needs_escape(c)) {
+		if (exec_char_needs_escape(c)) {
 			logger_write(logger, SFDO_LOG_LEVEL_ERROR, "%d:%d: unescaped character at position %zu",
 					scanner->line, scanner->column, scanner->i);
 			return SFDO_DESKTOP_ENTRY_LOAD_ERROR;
 		}
 	} else {
-		if (exec_is_reserved(c)) {
+		if (exec_char_is_reserved(c)) {
 			logger_write(logger, SFDO_LOG_LEVEL_ERROR,
 					"%d:%d: reserved character in a unquoted arg at position %zu", scanner->line,
 					scanner->column, scanner->i);
@@ -505,7 +505,7 @@ static enum sfdo_desktop_entry_load_result exec_add_quoted(struct sfdo_desktop_l
 
 		if (escape != '\0') {
 			if (escape == '\\') {
-				if (!exec_needs_escape(c)) {
+				if (!exec_char_needs_escape(c)) {
 					logger_write(logger, SFDO_LOG_LEVEL_ERROR,
 							"%d:%d: invalid escape sequence at position %zu", scanner->line,
 							scanner->column, escape_i);
@@ -559,7 +559,7 @@ static bool exec_try_consume_standalone(struct sfdo_desktop_exec_scanner *scanne
 		return false;
 	}
 	*code = exec[i + 1];
-	if (len - i > 2 && !exec_is_ws(exec[i + 2])) {
+	if (len - i > 2 && !exec_char_is_ws(exec[i + 2])) {
 		// Followed by a non-whitespace character
 		return false;
 	}
@@ -617,7 +617,7 @@ static enum sfdo_desktop_entry_load_result exec_add_unquoted(struct sfdo_desktop
 			}
 			break;
 		default:
-			if (!exec_is_deprecated_field_code(standalone)) {
+			if (!exec_char_is_deprecated_field_code(standalone)) {
 				goto err_invalid_field_code;
 			}
 			if ((r = exec_add_literal(loader, "")) != SFDO_DESKTOP_ENTRY_LOAD_OK) {
@@ -671,12 +671,12 @@ static enum sfdo_desktop_entry_load_result exec_add_unquoted(struct sfdo_desktop
 				}
 				break;
 			default:
-				if (!exec_is_deprecated_field_code(standalone)) {
+				if (!exec_char_is_deprecated_field_code(standalone)) {
 					goto err_invalid_field_code;
 				}
 				break;
 			}
-		} else if (exec_is_ws(c)) {
+		} else if (exec_char_is_ws(c)) {
 			break;
 		} else if (c == '%') {
 			field = true;
@@ -719,7 +719,7 @@ static bool exec_find_arg(struct sfdo_desktop_exec_scanner *scanner) {
 	while (true) {
 		if (scanner->i == scanner->data_len) {
 			return false;
-		} else if (!exec_is_ws(scanner->data[scanner->i])) {
+		} else if (!exec_char_is_ws(scanner->data[scanner->i])) {
 			return true;
 		}
 		++scanner->i;
