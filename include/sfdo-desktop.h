@@ -85,6 +85,12 @@ void sfdo_desktop_db_destroy(struct sfdo_desktop_db *db);
 struct sfdo_desktop_entry *sfdo_desktop_db_get_entry_by_id(
 		struct sfdo_desktop_db *db, const char *id, size_t id_len);
 
+// Get the list of desktop entries in a database.
+//
+// The number of entries is saved to n_entries.
+struct sfdo_desktop_entry **sfdo_desktop_db_get_entries(
+		struct sfdo_desktop_db *db, size_t *n_entries);
+
 // Get the desktop entry type.
 enum sfdo_desktop_entry_type sfdo_desktop_entry_get_type(struct sfdo_desktop_entry *entry);
 

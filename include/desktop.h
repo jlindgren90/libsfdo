@@ -117,6 +117,9 @@ struct sfdo_desktop_db {
 
 	struct sfdo_strpool strings;
 	struct sfdo_hashmap entries; // sfdo_desktop_map_entry
+
+	struct sfdo_desktop_entry **entries_list; // Shared with map entries
+	size_t n_entries;
 };
 
 #endif

@@ -1182,7 +1182,7 @@ static bool scan_dir(struct sfdo_desktop_loader *loader, size_t basedir_len) {
 			logger_write_oom(logger);
 			goto end;
 		} else if (map_entry->base.key != NULL) {
-			// Add only the first one, the priority is undefined
+			// Add only the first one
 			continue;
 		}
 
@@ -1216,6 +1216,9 @@ static bool scan_dir(struct sfdo_desktop_loader *loader, size_t basedir_len) {
 				}
 				map_entry->base.key = owned_id;
 				map_entry->entry = entry;
+				if (entry != NULL) {
+					++db->n_entries;
+				}
 				continue;
 			case SFDO_DESKTOP_ENTRY_LOAD_ERROR:
 				sfdo_strpool_restore(&db->strings, &strings_state);
@@ -1338,6 +1341,25 @@ SFDO_API struct sfdo_desktop_db *sfdo_desktop_db_load_from(struct sfdo_desktop_c
 		}
 	}
 
+	if (db->n_entries > 0) {
+		db->entries_list = calloc(db->n_entries, sizeof(struct sfdo_desktop_entry *));
+		if (db->entries_list == NULL) {
+			logger_write_oom(&db->ctx->logger);
+			goto end;
+		}
+	}
+
+	struct sfdo_hashmap *entries = &db->entries;
+	size_t list_i = 0;
+	for (size_t i = 0; i < entries->cap; i++) {
+		struct sfdo_desktop_map_entry *map_entry =
+				&((struct sfdo_desktop_map_entry *)entries->mem)[i];
+		if (map_entry->base.key != NULL && map_entry->entry != NULL) {
+			db->entries_list[list_i++] = map_entry->entry;
+		}
+	}
+	assert(list_i == db->n_entries);
+
 	ok = true;
 
 end:
@@ -1362,14 +1384,10 @@ SFDO_API void sfdo_desktop_db_destroy(struct sfdo_desktop_db *db) {
 		return;
 	}
 
-	struct sfdo_hashmap *entries = &db->entries;
-	for (size_t i = 0; i < entries->cap; i++) {
-		struct sfdo_desktop_map_entry *map_entry =
-				&((struct sfdo_desktop_map_entry *)entries->mem)[i];
-		if (map_entry->base.key != NULL) {
-			desktop_entry_destroy(map_entry->entry);
-		}
+	for (size_t i = 0; i < db->n_entries; i++) {
+		desktop_entry_destroy(db->entries_list[i]);
 	}
+	free(db->entries_list);
 
 	sfdo_hashmap_finish(&db->entries);
 	sfdo_strpool_finish(&db->strings);
@@ -1389,4 +1407,10 @@ SFDO_API struct sfdo_desktop_entry *sfdo_desktop_db_get_entry_by_id(
 		return NULL;
 	}
 	return map_entry->entry;
+}
+
+SFDO_API struct sfdo_desktop_entry **sfdo_desktop_db_get_entries(
+		struct sfdo_desktop_db *db, size_t *n_entries) {
+	*n_entries = db->n_entries;
+	return db->entries_list;
 }

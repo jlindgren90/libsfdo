@@ -12,6 +12,13 @@ examples = [
     ],
   },
   {
+    'name': 'desktop-dump',
+    'deps': [
+      sfdo_basedir,
+      sfdo_desktop,
+    ],
+  },
+  {
     'name': 'desktop-load',
     'deps': [
       sfdo_basedir,
