@@ -11,7 +11,7 @@ struct query {
 };
 
 static void die_usage(const char *prog) {
-	printf("Usage: %s [-D] [-l locale] <path> [group:key...]\n", prog);
+	printf("Usage: %s [-d] [-l locale] <path> [group:key...]\n", prog);
 	exit(1);
 }
 
@@ -21,9 +21,9 @@ int main(int argc, char **argv) {
 
 	char *prog = argv[0];
 	int opt;
-	while ((opt = getopt(argc, argv, "Dl:")) != -1) {
+	while ((opt = getopt(argc, argv, "dl:")) != -1) {
 		switch (opt) {
-		case 'D':
+		case 'd':
 			options |= SFDO_DESKTOP_FILE_LOAD_ALLOW_DUPLICATE_GROUPS;
 			break;
 		case 'l':

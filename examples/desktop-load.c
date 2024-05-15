@@ -61,7 +61,7 @@ static void print_boolean(const char *name, bool value) {
 }
 
 static void die_usage(const char *prog) {
-	printf("Usage: %s [-D] [-E environment] [-l locale] <id>\n", prog);
+	printf("Usage: %s [-d] [-e environment] [-l locale] <id>\n", prog);
 	exit(1);
 }
 
@@ -72,12 +72,12 @@ int main(int argc, char **argv) {
 
 	char *prog = argv[0];
 	int opt;
-	while ((opt = getopt(argc, argv, "DE:l:")) != -1) {
+	while ((opt = getopt(argc, argv, "de:l:")) != -1) {
 		switch (opt) {
-		case 'D':
+		case 'd':
 			debug = true;
 			break;
-		case 'E':
+		case 'e':
 			env = optarg;
 			break;
 		case 'l':

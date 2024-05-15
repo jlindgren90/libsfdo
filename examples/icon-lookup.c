@@ -22,7 +22,7 @@ static void log_handler(enum sfdo_log_level level, const char *fmt, va_list args
 }
 
 static void die_usage(const char *prog) {
-	printf("Usage: %s [-DMRS] <theme> <size> <scale> <names...>\n", prog);
+	printf("Usage: %s [-dmrs] <theme> <size> <scale> <names...>\n", prog);
 	exit(1);
 }
 
@@ -33,18 +33,18 @@ int main(int argc, char **argv) {
 
 	char *prog = argv[0];
 	int opt;
-	while ((opt = getopt(argc, argv, "DMRS")) != -1) {
+	while ((opt = getopt(argc, argv, "dmrs")) != -1) {
 		switch (opt) {
-		case 'D':
+		case 'd':
 			debug = true;
 			break;
-		case 'M':
+		case 'm':
 			load_options |= SFDO_ICON_THEME_LOAD_OPTION_ALLOW_MISSING;
 			break;
-		case 'R':
+		case 'r':
 			load_options |= SFDO_ICON_THEME_LOAD_OPTION_RELAXED;
 			break;
-		case 'S':
+		case 's':
 			lookup_options |= SFDO_ICON_THEME_LOOKUP_OPTION_NO_SVG;
 			break;
 		default:

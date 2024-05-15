@@ -22,7 +22,7 @@ static void log_handler(enum sfdo_log_level level, const char *fmt, va_list args
 }
 
 static void die_usage(const char *prog) {
-	printf("Usage: %s [-dD] <id> [args…]\n", prog);
+	printf("Usage: %s [-dp] [-a <action>] <id> [args…]\n", prog);
 	exit(1);
 }
 
@@ -75,16 +75,16 @@ int main(int argc, char **argv) {
 
 	char *prog = argv[0];
 	int opt;
-	while ((opt = getopt(argc, argv, "Da:p")) != -1) {
+	while ((opt = getopt(argc, argv, "dpa:")) != -1) {
 		switch (opt) {
-		case 'D':
+		case 'd':
 			debug = true;
-			break;
-		case 'a':
-			action = optarg;
 			break;
 		case 'p':
 			print = true;
+			break;
+		case 'a':
+			action = optarg;
 			break;
 		default:
 			die_usage(prog);
