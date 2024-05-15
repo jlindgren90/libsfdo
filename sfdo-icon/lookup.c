@@ -61,7 +61,7 @@ static bool curr_is_better(const struct sfdo_icon_image *best, int best_dist,
 
 	// Both are scalable or non-scalable; prefer closest to requested pixel size
 	return abs(pixel_size - curr_dir->size * curr_dir->scale) <
-			abs(pixel_size - best_dir->size * curr_dir->scale);
+			abs(pixel_size - best_dir->size * best_dir->scale);
 }
 
 static const struct sfdo_icon_image *node_lookup_icon(struct sfdo_icon_theme_node *node,
