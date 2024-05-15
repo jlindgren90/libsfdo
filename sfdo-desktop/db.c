@@ -838,12 +838,52 @@ static enum sfdo_desktop_entry_load_result load_show_in(struct sfdo_desktop_load
 	return SFDO_DESKTOP_ENTRY_LOAD_OK;
 }
 
+static bool dbus_name_char_is_valid_leader(char c, bool allow_hyphen) {
+	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' ||
+			(allow_hyphen && c == '-');
+}
+
+static bool dbus_name_char_is_valid_cont(char c, bool allow_hyphen) {
+	return (c >= '0' && c <= '9') || dbus_name_char_is_valid_leader(c, allow_hyphen);
+}
+
+static bool validate_dbus_name(const char *name, size_t len, bool interface) {
+	if (len > 255) {
+		// Exceeds maximum name length
+		return false;
+	}
+
+	int n_elements = 0;
+	size_t elem_start, elem_len;
+	size_t iter = 0;
+	while (sfdo_striter(name, '.', &iter, &elem_start, &elem_len)) {
+		if (elem_len == 0) {
+			// All elements must contain at least one character
+			return false;
+		}
+		if (!dbus_name_char_is_valid_leader(name[elem_start], !interface)) {
+			return false;
+		}
+		for (size_t i = 1; i < elem_len; i++) {
+			if (!dbus_name_char_is_valid_cont(name[elem_start + i], !interface)) {
+				return false;
+			}
+		}
+		++n_elements;
+	}
+
+	if (interface && n_elements < 2) {
+		// Interface names are composed of 2 or more elements
+		return false;
+	}
+
+	return true;
+}
+
 static enum sfdo_desktop_entry_load_result entry_load(struct sfdo_desktop_loader *loader,
-		struct sfdo_desktop_file_document *doc, struct sfdo_desktop_entry **out) {
+		struct sfdo_desktop_file_document *doc, struct sfdo_desktop_map_entry *map_entry) {
 	struct sfdo_desktop_db *db = loader->db;
 	struct sfdo_logger *logger = &db->ctx->logger;
-
-	*out = NULL;
 
 	const char *group_name;
 	size_t group_name_len;
@@ -913,6 +953,9 @@ static enum sfdo_desktop_entry_load_result entry_load(struct sfdo_desktop_loader
 	struct sfdo_hashmap action_set;
 	sfdo_hashmap_init(&action_set, sizeof(struct sfdo_hashmap_entry));
 
+	d_entry->id.data = map_entry->base.key;
+	d_entry->id.len = map_entry->base.key_len;
+
 	if ((r = store_string(loader, loader->path_buf.data, loader->path_buf.len,
 				 &d_entry->file_path)) != SFDO_DESKTOP_ENTRY_LOAD_OK) {
 		goto end;
@@ -943,9 +986,23 @@ static enum sfdo_desktop_entry_load_result entry_load(struct sfdo_desktop_loader
 		goto end;
 	}
 
-	if ((r = load_list(loader, group, "Implements", 10, &d_entry->implements,
-				 &d_entry->n_implements)) != SFDO_DESKTOP_ENTRY_LOAD_OK) {
-		goto end;
+	if ((entry = sfdo_desktop_file_group_get_entry(group, "Implements", 10)) != NULL) {
+		value = sfdo_desktop_file_entry_get_value(entry, NULL);
+		if ((r = store_list(loader, value, &d_entry->implements, &d_entry->n_implements)) !=
+				SFDO_DESKTOP_ENTRY_LOAD_OK) {
+			goto end;
+		}
+		for (size_t i = 0; i < d_entry->n_implements; i++) {
+			struct sfdo_string *iface = &d_entry->implements[i];
+			if (!validate_dbus_name(iface->data, iface->len, true)) {
+				int line, column;
+				sfdo_desktop_file_entry_get_location(entry, &line, &column);
+				logger_write(logger, SFDO_LOG_LEVEL_ERROR, "%d:%d: %s is not a valid D-Bus name",
+						line, column, iface->data);
+				r = SFDO_DESKTOP_ENTRY_LOAD_ERROR;
+				goto end;
+			}
+		}
 	}
 
 	bool startup_notify;
@@ -968,7 +1025,13 @@ static enum sfdo_desktop_entry_load_result entry_load(struct sfdo_desktop_loader
 			goto end;
 		}
 		if (d_entry->app.dbus_activatable) {
-			// TODO: validate id if dbus activatable
+			if (!validate_dbus_name(d_entry->id.data, d_entry->id.len, false)) {
+				logger_write(logger, SFDO_LOG_LEVEL_ERROR,
+						"%d:%d: DBusActivatable is true but %s is not a valid D-Bus name",
+						group_line, group_column, d_entry->id.data);
+				r = SFDO_DESKTOP_ENTRY_LOAD_ERROR;
+				goto end;
+			}
 		}
 		if ((r = load_boolean(loader, group, "Terminal", 8, &d_entry->app.terminal)) !=
 				SFDO_DESKTOP_ENTRY_LOAD_OK) {
@@ -1087,7 +1150,7 @@ static enum sfdo_desktop_entry_load_result entry_load(struct sfdo_desktop_loader
 end:
 	sfdo_hashmap_finish(&action_set);
 	if (r == SFDO_DESKTOP_ENTRY_LOAD_OK) {
-		*out = d_entry;
+		map_entry->entry = d_entry;
 	} else {
 		desktop_entry_destroy(d_entry);
 	}
@@ -1113,10 +1176,10 @@ static bool scan_dir(struct sfdo_desktop_loader *loader, size_t basedir_len) {
 	struct dirent *dirent;
 	while ((dirent = readdir(dirp)) != NULL) {
 		char *name = dirent->d_name;
-		if (name[0] == '.' || name[0] == '\0') {
-			// TODO: actually validate name
+		if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) {
 			continue;
 		}
+
 		size_t name_len = strlen(name);
 
 		pb->len = base_pb_len;
@@ -1184,6 +1247,12 @@ static bool scan_dir(struct sfdo_desktop_loader *loader, size_t basedir_len) {
 		} else if (map_entry->base.key != NULL) {
 			// Add only the first one
 			continue;
+		} else {
+			map_entry->base.key = sfdo_strpool_add(&db->strings, ib->data, ib->len);
+			if (map_entry->base.key == NULL) {
+				logger_write_oom(logger);
+				goto end;
+			}
 		}
 
 		FILE *fp = fopen(pb->data, "r");
@@ -1201,22 +1270,12 @@ static bool scan_dir(struct sfdo_desktop_loader *loader, size_t basedir_len) {
 			struct sfdo_strpool_state strings_state;
 			sfdo_strpool_save(&db->strings, &strings_state);
 
-			struct sfdo_desktop_entry *entry;
-			enum sfdo_desktop_entry_load_result result = entry_load(loader, doc, &entry);
+			enum sfdo_desktop_entry_load_result result = entry_load(loader, doc, map_entry);
 			sfdo_desktop_file_document_destroy(doc);
 
-			const char *owned_id;
 			switch (result) {
 			case SFDO_DESKTOP_ENTRY_LOAD_OK:
-				owned_id = sfdo_strpool_add(&db->strings, ib->data, ib->len);
-				if (owned_id == NULL) {
-					logger_write_oom(logger);
-					desktop_entry_destroy(entry);
-					goto end;
-				}
-				map_entry->base.key = owned_id;
-				map_entry->entry = entry;
-				if (entry != NULL) {
+				if (map_entry->entry != NULL) {
 					++db->n_entries;
 				}
 				continue;

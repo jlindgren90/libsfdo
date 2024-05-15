@@ -47,6 +47,7 @@ struct sfdo_desktop_entry_action {
 struct sfdo_desktop_entry {
 	enum sfdo_desktop_entry_type type;
 
+	struct sfdo_string id;
 	struct sfdo_string file_path;
 
 	struct sfdo_string name;

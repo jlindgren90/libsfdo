@@ -18,6 +18,10 @@ SFDO_API enum sfdo_desktop_entry_type sfdo_desktop_entry_get_type(
 	return entry->type;
 }
 
+SFDO_API const char *sfdo_desktop_entry_get_id(struct sfdo_desktop_entry *entry, size_t *len) {
+	return unpack_string(&entry->id, len);
+}
+
 SFDO_API const char *sfdo_desktop_entry_get_file_path(
 		struct sfdo_desktop_entry *entry, size_t *len) {
 	return unpack_string(&entry->file_path, len);

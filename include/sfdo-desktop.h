@@ -94,6 +94,11 @@ struct sfdo_desktop_entry **sfdo_desktop_db_get_entries(
 // Get the desktop entry type.
 enum sfdo_desktop_entry_type sfdo_desktop_entry_get_type(struct sfdo_desktop_entry *entry);
 
+// Get the desktop entry ID.
+//
+// The length of the ID is saved to len. len may be NULL.
+const char *sfdo_desktop_entry_get_id(struct sfdo_desktop_entry *entry, size_t *len);
+
 // Get the desktop entry file path.
 //
 // The length of the path is saved to len. len may be NULL.

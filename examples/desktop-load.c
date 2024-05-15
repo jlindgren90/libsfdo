@@ -118,6 +118,9 @@ int main(int argc, char **argv) {
 		const struct sfdo_string *strs;
 		size_t n_strs;
 
+		str = sfdo_desktop_entry_get_id(entry, &str_len);
+		print_str("ID", str, str_len);
+
 		str = sfdo_desktop_entry_get_file_path(entry, &str_len);
 		print_str("File path", str, str_len);
 
