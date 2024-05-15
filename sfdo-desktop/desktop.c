@@ -1,3 +1,4 @@
+#include <sfdo-basedir.h>
 #include <sfdo-desktop.h>
 #include <stdlib.h>
 #include <string.h>
@@ -5,7 +6,6 @@
 #include "api.h"
 #include "desktop.h"
 #include "membuild.h"
-#include "sfdo-basedir.h"
 
 #define APPLICATIONS_SUFFIX "applications/"
 

@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <sfdo-common.h>
 #include <sfdo-desktop-file.h>
 #include <stdlib.h>
 #include <string.h>
@@ -7,7 +8,6 @@
 #include "grow.h"
 #include "hash.h"
 #include "membuild.h"
-#include "sfdo-common.h"
 
 #define RUNE_EOF (-1)
 #define RUNE_NONE (-2)

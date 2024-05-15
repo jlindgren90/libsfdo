@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <dirent.h>
+#include <sfdo-desktop-file.h>
 #include <sfdo-desktop.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -11,7 +12,6 @@
 #include "grow.h"
 #include "membuild.h"
 #include "path.h"
-#include "sfdo-desktop-file.h"
 #include "strbuild.h"
 #include "striter.h"
 #include "strpool.h"

@@ -1,12 +1,11 @@
 #include <errno.h>
 #include <getopt.h>
+#include <sfdo-basedir.h>
 #include <sfdo-desktop.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-
-#include "sfdo-basedir.h"
 
 static void log_handler(enum sfdo_log_level level, const char *fmt, va_list args, void *data) {
 	(void)level;
