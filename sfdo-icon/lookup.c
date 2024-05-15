@@ -138,11 +138,6 @@ SFDO_API bool sfdo_icon_theme_lookup_best(struct sfdo_icon_theme *theme,
 	assert(size > 0);
 	assert(scale > 0);
 
-	int pixel_size = size * scale;
-	if (pixel_size < 0) {
-		return false;
-	}
-
 	if (!icon_theme_maybe_rescan(theme)) {
 		return false;
 	}
@@ -155,7 +150,9 @@ SFDO_API bool sfdo_icon_theme_lookup_best(struct sfdo_icon_theme *theme,
 	const struct sfdo_icon_image *img = NULL;
 	const struct sfdo_string *img_name = NULL;
 
-	struct sfdo_icon_theme_node *node;
+	struct sfdo_icon_theme_node *node = NULL;
+
+	int pixel_size = size * scale;
 
 	for (node = theme->nodes; node != NULL; node = node->next) {
 		for (size_t i = 0; i < n_names; i++) {
