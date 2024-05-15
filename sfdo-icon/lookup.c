@@ -11,8 +11,8 @@
 
 struct sfdo_icon_file {
 	enum sfdo_icon_file_format format;
-	char *path;
 	size_t path_len;
+	char path[];
 };
 
 // SPEC: the algorithm in the specification results in suboptimal matches
@@ -195,16 +195,9 @@ found:
 
 	size_t path_size = path_len + 1;
 
-	struct sfdo_icon_file *result = calloc(1, sizeof(*result));
+	struct sfdo_icon_file *result = calloc(1, sizeof(*result) + path_size);
 	if (result == NULL) {
 		logger_write_oom(logger);
-		return false;
-	}
-
-	result->path = malloc(path_size);
-	if (result->path == NULL) {
-		logger_write_oom(logger);
-		free(result);
 		return false;
 	}
 
@@ -251,7 +244,6 @@ SFDO_API void sfdo_icon_file_destroy(struct sfdo_icon_file *file) {
 		return;
 	}
 
-	free(file->path);
 	free(file);
 }
 
