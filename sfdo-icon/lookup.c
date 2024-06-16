@@ -118,8 +118,9 @@ static const struct sfdo_icon_image *theme_lookup_fallback_icon(
 	return NULL;
 }
 
-SFDO_API bool sfdo_icon_theme_lookup(struct sfdo_icon_theme *theme, const char *name,
-		size_t name_len, int size, int scale, int options, struct sfdo_icon_file **file) {
+SFDO_API struct sfdo_icon_file *sfdo_icon_theme_lookup(struct sfdo_icon_theme *theme,
+		const char *name, size_t name_len, int size, int scale, int options,
+		enum sfdo_icon_theme_lookup_error *error) {
 	if (name_len == SFDO_NT) {
 		name_len = strlen(name);
 	}
@@ -127,19 +128,25 @@ SFDO_API bool sfdo_icon_theme_lookup(struct sfdo_icon_theme *theme, const char *
 		.data = name,
 		.len = name_len,
 	};
-	return sfdo_icon_theme_lookup_best(theme, &name_str, 1, size, scale, options, file);
+	return sfdo_icon_theme_lookup_best(theme, &name_str, 1, size, scale, options, error);
 }
 
-SFDO_API bool sfdo_icon_theme_lookup_best(struct sfdo_icon_theme *theme,
+SFDO_API struct sfdo_icon_file *sfdo_icon_theme_lookup_best(struct sfdo_icon_theme *theme,
 		const struct sfdo_string *names, size_t n_names, int size, int scale, int options,
-		struct sfdo_icon_file **file) {
+		enum sfdo_icon_theme_lookup_error *error) {
+	enum sfdo_icon_theme_lookup_error placeholder;
+	if (error == NULL) {
+		error = &placeholder;
+	}
+
 	struct sfdo_logger *logger = &theme->ctx->logger;
 
 	assert(size > 0);
 	assert(scale > 0);
 
 	if (!icon_theme_maybe_rescan(theme)) {
-		return false;
+		*error = SFDO_ICON_THEME_LOOKUP_ERROR_RESCAN;
+		return NULL;
 	}
 
 	int formats = SFDO_ICON_FORMAT_MASK_PNG | SFDO_ICON_FORMAT_MASK_XPM;
@@ -174,8 +181,8 @@ SFDO_API bool sfdo_icon_theme_lookup_best(struct sfdo_icon_theme *theme,
 		}
 	}
 
-	*file = NULL;
-	return true;
+	*error = SFDO_ICON_THEME_LOOKUP_ERROR_NOT_FOUND;
+	return NULL;
 
 found:
 	assert((node == NULL) == (img->subdir == NULL));
@@ -192,27 +199,28 @@ found:
 
 	size_t path_size = path_len + 1;
 
-	struct sfdo_icon_file *result = calloc(1, sizeof(*result) + path_size);
-	if (result == NULL) {
+	struct sfdo_icon_file *file = calloc(1, sizeof(*file) + path_size);
+	if (file == NULL) {
+		*error = SFDO_ICON_THEME_LOOKUP_ERROR_OOM;
 		logger_write_oom(logger);
-		return false;
+		return NULL;
 	}
 
-	result->path_len = path_len;
+	file->path_len = path_len;
 
 	formats &= img->formats;
 	if ((formats & SFDO_ICON_FORMAT_MASK_PNG) != 0) {
-		result->format = SFDO_ICON_FILE_FORMAT_PNG;
+		file->format = SFDO_ICON_FILE_FORMAT_PNG;
 	} else if ((formats & SFDO_ICON_FORMAT_MASK_SVG) != 0) {
-		result->format = SFDO_ICON_FILE_FORMAT_SVG;
+		file->format = SFDO_ICON_FILE_FORMAT_SVG;
 	} else if ((formats & SFDO_ICON_FORMAT_MASK_XPM) != 0) {
-		result->format = SFDO_ICON_FILE_FORMAT_XPM;
+		file->format = SFDO_ICON_FILE_FORMAT_XPM;
 	} else {
 		abort(); // Unreachable
 	}
 
 	const char *ext = NULL;
-	switch (result->format) {
+	switch (file->format) {
 	case SFDO_ICON_FILE_FORMAT_PNG:
 		ext = "png";
 		break;
@@ -226,14 +234,14 @@ found:
 	assert(ext != NULL);
 
 	if (node != NULL) {
-		snprintf(result->path, path_size, "%s%s/%s/%s.%s", img->basedir->data, node->name,
+		snprintf(file->path, path_size, "%s%s/%s/%s.%s", img->basedir->data, node->name,
 				img->subdir->path.data, img_name->data, ext);
 	} else {
-		snprintf(result->path, path_size, "%s%s.%s", img->basedir->data, img_name->data, ext);
+		snprintf(file->path, path_size, "%s%s.%s", img->basedir->data, img_name->data, ext);
 	}
 
-	*file = result;
-	return true;
+	*error = SFDO_ICON_THEME_LOOKUP_ERROR_NONE;
+	return file;
 }
 
 SFDO_API void sfdo_icon_file_destroy(struct sfdo_icon_file *file) {

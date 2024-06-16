@@ -51,9 +51,8 @@ enum sfdo_desktop_file_load_options {
 //
 // options is a result of bitwise OR of zero or more enum sfdo_desktop_file_load_options values.
 //
-// On failure, the information about the error is saved to error. error may be NULL.
-//
-// Returns NULL on failure.
+// Returns NULL on failure, in which case the information about the error is saved to error. error
+// may be NULL.
 struct sfdo_desktop_file_document *sfdo_desktop_file_document_load(
 		FILE *fp, const char *locale, int options, struct sfdo_desktop_file_error *error);
 
