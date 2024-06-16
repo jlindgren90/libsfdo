@@ -215,7 +215,7 @@ SFDO_API struct sfdo_desktop_exec_command *sfdo_desktop_exec_format_list(
 	cmd->n_args = n_args;
 
 	// cmd->args[n_args] is NULL
-	cmd->args = calloc(sizeof(const char *), n_args + 1);
+	cmd->args = calloc(n_args + 1, sizeof(const char *));
 	if (cmd->args == NULL) {
 		goto err_args;
 	}
