@@ -144,9 +144,11 @@ SFDO_API struct sfdo_icon_file *sfdo_icon_theme_lookup_best(struct sfdo_icon_the
 	assert(size > 0);
 	assert(scale > 0);
 
-	if (!icon_theme_maybe_rescan(theme)) {
-		*error = SFDO_ICON_THEME_LOOKUP_ERROR_RESCAN;
-		return NULL;
+	if ((options & SFDO_ICON_THEME_LOOKUP_OPTION_NO_RESCAN) == 0) {
+		if (!icon_theme_maybe_rescan(theme)) {
+			*error = SFDO_ICON_THEME_LOOKUP_ERROR_RESCAN;
+			return NULL;
+		}
 	}
 
 	int formats = SFDO_ICON_FORMAT_MASK_PNG | SFDO_ICON_FORMAT_MASK_XPM;

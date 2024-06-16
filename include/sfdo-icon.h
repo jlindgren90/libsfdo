@@ -46,6 +46,10 @@ enum sfdo_icon_theme_lookup_options {
 
 	// If this flag is set, SVG icons will be ignored.
 	SFDO_ICON_THEME_LOOKUP_OPTION_NO_SVG = (1 << 0),
+
+	// If this flag is set, no automatic rescan will be performed. By default, looking up an icon
+	// will trigger a theme rescan, unless it has been already done less than 5 seconds ago.
+	SFDO_ICON_THEME_LOOKUP_OPTION_NO_RESCAN = (1 << 1),
 };
 
 enum sfdo_icon_theme_lookup_error {
