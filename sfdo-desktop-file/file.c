@@ -752,7 +752,7 @@ SFDO_API const char *sfdo_desktop_file_error_code_get_description(
 	case SFDO_DESKTOP_FILE_ERROR_NO_DEFAULT_VALUE:
 		return "No default value";
 	}
-	abort(); // Unreachable
+	return "Unknown error";
 }
 
 SFDO_API struct sfdo_desktop_file_group *sfdo_desktop_file_group_get_next(
