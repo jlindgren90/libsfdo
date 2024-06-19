@@ -105,6 +105,12 @@ const char *sfdo_desktop_file_entry_get_key(struct sfdo_desktop_file_entry *entr
 // The length of the value is saved to len. len may be NULL.
 const char *sfdo_desktop_file_entry_get_value(struct sfdo_desktop_file_entry *entry, size_t *len);
 
+// Get the localized entry value.
+//
+// The length of the value is saved to len. len may be NULL.
+const char *sfdo_desktop_file_entry_get_localized_value(
+		struct sfdo_desktop_file_entry *entry, size_t *len);
+
 // Get the entry location in the file.
 //
 // The location is saved to line and column. line and column may be NULL.

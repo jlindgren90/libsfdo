@@ -55,6 +55,17 @@ enum sfdo_desktop_entry_load_result {
 	SFDO_DESKTOP_ENTRY_LOAD_OOM,
 };
 
+enum sfdo_desktop_entry_value_req {
+	SFDO_DESKTOP_ENTRY_VALUE_OPTIONAL,
+	SFDO_DESKTOP_ENTRY_VALUE_REQUIRED,
+};
+
+enum sfdo_desktop_entry_value_type {
+	SFDO_DESKTOP_ENTRY_VALUE_STRING,
+	// Also used for iconstring
+	SFDO_DESKTOP_ENTRY_VALUE_LOCALESTRING,
+};
+
 static void exec_finish(struct sfdo_desktop_exec *exec) {
 	free(exec->literals);
 }
@@ -141,7 +152,8 @@ static enum sfdo_desktop_entry_load_result store_string(struct sfdo_desktop_load
 }
 
 static enum sfdo_desktop_entry_load_result load_string(struct sfdo_desktop_loader *loader,
-		struct sfdo_desktop_file_group *group, const char *key, size_t key_len, bool required,
+		struct sfdo_desktop_file_group *group, const char *key, size_t key_len,
+		enum sfdo_desktop_entry_value_req req, enum sfdo_desktop_entry_value_type type,
 		struct sfdo_string *dst) {
 	struct sfdo_desktop_db *db = loader->db;
 	struct sfdo_logger *logger = &db->ctx->logger;
@@ -149,9 +161,18 @@ static enum sfdo_desktop_entry_load_result load_string(struct sfdo_desktop_loade
 	struct sfdo_desktop_file_entry *entry;
 	if ((entry = sfdo_desktop_file_group_get_entry(group, key, key_len)) != NULL) {
 		size_t value_len;
-		const char *value = sfdo_desktop_file_entry_get_value(entry, &value_len);
+		const char *value = NULL;
+		switch (type) {
+		case SFDO_DESKTOP_ENTRY_VALUE_STRING:
+			value = sfdo_desktop_file_entry_get_value(entry, &value_len);
+			break;
+		case SFDO_DESKTOP_ENTRY_VALUE_LOCALESTRING:
+			value = sfdo_desktop_file_entry_get_localized_value(entry, &value_len);
+			break;
+		}
+		assert(value != NULL);
 		return store_string(loader, value, value_len, dst);
-	} else if (required) {
+	} else if (req == SFDO_DESKTOP_ENTRY_VALUE_REQUIRED) {
 		int group_line, group_column;
 		sfdo_desktop_file_group_get_location(group, &group_line, &group_column);
 		logger_write(
@@ -208,10 +229,19 @@ static enum sfdo_desktop_entry_load_result store_list(struct sfdo_desktop_loader
 
 static enum sfdo_desktop_entry_load_result load_list(struct sfdo_desktop_loader *loader,
 		struct sfdo_desktop_file_group *group, const char *key, size_t key_len,
-		struct sfdo_string **dst, size_t *n_dst) {
+		enum sfdo_desktop_entry_value_type type, struct sfdo_string **dst, size_t *n_dst) {
 	struct sfdo_desktop_file_entry *entry;
 	if ((entry = sfdo_desktop_file_group_get_entry(group, key, key_len)) != NULL) {
-		const char *value = sfdo_desktop_file_entry_get_value(entry, NULL);
+		const char *value = NULL;
+		switch (type) {
+		case SFDO_DESKTOP_ENTRY_VALUE_STRING:
+			value = sfdo_desktop_file_entry_get_value(entry, NULL);
+			break;
+		case SFDO_DESKTOP_ENTRY_VALUE_LOCALESTRING:
+			value = sfdo_desktop_file_entry_get_localized_value(entry, NULL);
+			break;
+		}
+		assert(value != NULL);
 		return store_list(loader, value, dst, n_dst);
 	} else {
 		*dst = NULL;
@@ -961,7 +991,8 @@ static enum sfdo_desktop_entry_load_result entry_load(struct sfdo_desktop_loader
 		goto end;
 	}
 
-	if ((r = load_string(loader, group, "Name", 4, true, &d_entry->name)) !=
+	if ((r = load_string(loader, group, "Name", 4, SFDO_DESKTOP_ENTRY_VALUE_REQUIRED,
+				 SFDO_DESKTOP_ENTRY_VALUE_LOCALESTRING, &d_entry->name)) !=
 			SFDO_DESKTOP_ENTRY_LOAD_OK) {
 		goto end;
 	}
@@ -969,15 +1000,18 @@ static enum sfdo_desktop_entry_load_result entry_load(struct sfdo_desktop_loader
 			SFDO_DESKTOP_ENTRY_LOAD_OK) {
 		goto end;
 	}
-	if ((r = load_string(loader, group, "GenericName", 11, false, &d_entry->generic_name)) !=
+	if ((r = load_string(loader, group, "GenericName", 11, SFDO_DESKTOP_ENTRY_VALUE_OPTIONAL,
+				 SFDO_DESKTOP_ENTRY_VALUE_LOCALESTRING, &d_entry->generic_name)) !=
 			SFDO_DESKTOP_ENTRY_LOAD_OK) {
 		goto end;
 	}
-	if ((r = load_string(loader, group, "Comment", 7, false, &d_entry->comment)) !=
+	if ((r = load_string(loader, group, "Comment", 7, SFDO_DESKTOP_ENTRY_VALUE_OPTIONAL,
+				 SFDO_DESKTOP_ENTRY_VALUE_LOCALESTRING, &d_entry->comment)) !=
 			SFDO_DESKTOP_ENTRY_LOAD_OK) {
 		goto end;
 	}
-	if ((r = load_string(loader, group, "Icon", 4, false, &d_entry->icon)) !=
+	if ((r = load_string(loader, group, "Icon", 4, SFDO_DESKTOP_ENTRY_VALUE_OPTIONAL,
+				 SFDO_DESKTOP_ENTRY_VALUE_LOCALESTRING, &d_entry->icon)) !=
 			SFDO_DESKTOP_ENTRY_LOAD_OK) {
 		goto end;
 	}
@@ -1045,7 +1079,8 @@ static enum sfdo_desktop_entry_load_result entry_load(struct sfdo_desktop_loader
 					 &d_entry->app.single_main_window)) != SFDO_DESKTOP_ENTRY_LOAD_OK) {
 			goto end;
 		}
-		if ((r = load_string(loader, group, "TryExec", 7, false, &d_entry->app.try_exec)) !=
+		if ((r = load_string(loader, group, "TryExec", 7, SFDO_DESKTOP_ENTRY_VALUE_OPTIONAL,
+					 SFDO_DESKTOP_ENTRY_VALUE_STRING, &d_entry->app.try_exec)) !=
 				SFDO_DESKTOP_ENTRY_LOAD_OK) {
 			goto end;
 		}
@@ -1061,28 +1096,33 @@ static enum sfdo_desktop_entry_load_result entry_load(struct sfdo_desktop_loader
 			r = SFDO_DESKTOP_ENTRY_LOAD_ERROR;
 			goto end;
 		}
-		if ((r = load_string(loader, group, "Path", 4, false, &d_entry->app.path)) !=
+		if ((r = load_string(loader, group, "Path", 4, SFDO_DESKTOP_ENTRY_VALUE_OPTIONAL,
+					 SFDO_DESKTOP_ENTRY_VALUE_STRING, &d_entry->app.path)) !=
 				SFDO_DESKTOP_ENTRY_LOAD_OK) {
 			goto end;
 		}
-		if ((r = load_string(loader, group, "StartupWMClass", 14, false,
-					 &d_entry->app.startup_wm_class)) != SFDO_DESKTOP_ENTRY_LOAD_OK) {
+		if ((r = load_string(loader, group, "StartupWMClass", 14, SFDO_DESKTOP_ENTRY_VALUE_OPTIONAL,
+					 SFDO_DESKTOP_ENTRY_VALUE_STRING, &d_entry->app.startup_wm_class)) !=
+				SFDO_DESKTOP_ENTRY_LOAD_OK) {
 			goto end;
 		}
-		if ((r = load_list(loader, group, "MimeType", 8, &d_entry->app.mimetypes,
-					 &d_entry->app.n_mimetypes)) != SFDO_DESKTOP_ENTRY_LOAD_OK) {
+		if ((r = load_list(loader, group, "MimeType", 8, SFDO_DESKTOP_ENTRY_VALUE_STRING,
+					 &d_entry->app.mimetypes, &d_entry->app.n_mimetypes)) !=
+				SFDO_DESKTOP_ENTRY_LOAD_OK) {
 			goto end;
 		}
 		if ((r = load_actions(loader, group, &d_entry->app.actions_mem, &d_entry->app.actions,
 					 &d_entry->app.n_actions, &action_set)) != SFDO_DESKTOP_ENTRY_LOAD_OK) {
 			goto end;
 		}
-		if ((r = load_list(loader, group, "Categories", 10, &d_entry->app.categories,
-					 &d_entry->app.n_categories)) != SFDO_DESKTOP_ENTRY_LOAD_OK) {
+		if ((r = load_list(loader, group, "Categories", 10, SFDO_DESKTOP_ENTRY_VALUE_STRING,
+					 &d_entry->app.categories, &d_entry->app.n_categories)) !=
+				SFDO_DESKTOP_ENTRY_LOAD_OK) {
 			goto end;
 		}
-		if ((r = load_list(loader, group, "Keywords", 8, &d_entry->app.keywords,
-					 &d_entry->app.n_keywords)) != SFDO_DESKTOP_ENTRY_LOAD_OK) {
+		if ((r = load_list(loader, group, "Keywords", 8, SFDO_DESKTOP_ENTRY_VALUE_LOCALESTRING,
+					 &d_entry->app.keywords, &d_entry->app.n_keywords)) !=
+				SFDO_DESKTOP_ENTRY_LOAD_OK) {
 			goto end;
 		}
 
@@ -1107,11 +1147,13 @@ static enum sfdo_desktop_entry_load_result entry_load(struct sfdo_desktop_loader
 			assert(action_i < d_entry->app.n_actions);
 			struct sfdo_desktop_entry_action *action = d_entry->app.actions[action_i++];
 
-			if ((r = load_string(loader, group, "Name", 4, true, &action->name)) !=
+			if ((r = load_string(loader, group, "Name", 4, SFDO_DESKTOP_ENTRY_VALUE_REQUIRED,
+						 SFDO_DESKTOP_ENTRY_VALUE_LOCALESTRING, &action->name)) !=
 					SFDO_DESKTOP_ENTRY_LOAD_OK) {
 				goto end;
 			}
-			if ((r = load_string(loader, group, "Icon", 4, false, &action->icon)) !=
+			if ((r = load_string(loader, group, "Icon", 4, SFDO_DESKTOP_ENTRY_VALUE_OPTIONAL,
+						 SFDO_DESKTOP_ENTRY_VALUE_LOCALESTRING, &action->icon)) !=
 					SFDO_DESKTOP_ENTRY_LOAD_OK) {
 				goto end;
 			}
@@ -1138,7 +1180,8 @@ static enum sfdo_desktop_entry_load_result entry_load(struct sfdo_desktop_loader
 
 		break;
 	case SFDO_DESKTOP_ENTRY_LINK:
-		if ((r = load_string(loader, group, "URL", 3, false, &d_entry->link.url)) !=
+		if ((r = load_string(loader, group, "URL", 3, SFDO_DESKTOP_ENTRY_VALUE_REQUIRED,
+					 SFDO_DESKTOP_ENTRY_VALUE_STRING, &d_entry->link.url)) !=
 				SFDO_DESKTOP_ENTRY_LOAD_OK) {
 			goto end;
 		}

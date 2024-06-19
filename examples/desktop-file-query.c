@@ -96,7 +96,7 @@ int main(int argc, char **argv) {
 				struct sfdo_desktop_file_entry *entry =
 						sfdo_desktop_file_group_get_entry(group, query->key, query->key_len);
 				if (entry != NULL) {
-					const char *value = sfdo_desktop_file_entry_get_value(entry, NULL);
+					const char *value = sfdo_desktop_file_entry_get_localized_value(entry, NULL);
 					printf("%s/%s: %s\n", name, query->key, value);
 					break;
 				}

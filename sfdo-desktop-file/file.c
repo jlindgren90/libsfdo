@@ -19,9 +19,10 @@ struct sfdo_desktop_file_entry {
 	size_t key_len;
 	char *value;
 	size_t value_len;
+	char *localized_value; // May be NULL
+	size_t localized_value_len;
 	int line, column;
 	uint8_t locale_match_level; // Locale index + 1
-	bool has_default;
 };
 
 struct sfdo_desktop_file_map_entry {
@@ -377,7 +378,8 @@ static bool read_entry(struct sfdo_desktop_file_loader *loader) {
 		entry = map_entry->entry;
 	}
 
-	bool overwrite_value = false;
+	char **value_dst = NULL;
+	size_t *value_len_dst = NULL;
 
 	if (loader->rune == '[') {
 		reset_buf(loader);
@@ -410,19 +412,18 @@ static bool read_entry(struct sfdo_desktop_file_loader *loader) {
 		for (uint8_t i = entry->locale_match_level; i < loader->n_locales; i++) {
 			if (strcmp(loader->locales[i], loader->buf) == 0) {
 				entry->locale_match_level = i + 1;
-				overwrite_value = true;
+				value_dst = &entry->localized_value;
+				value_len_dst = &entry->localized_value_len;
 				break;
 			}
 		}
 	} else {
-		if (entry->has_default) {
+		if (entry->value != NULL) {
 			set_error_at(loader, SFDO_DESKTOP_FILE_ERROR_DUPLICATE_KEY, line, column);
 			return false;
 		}
-		entry->has_default = true;
-		if (entry->locale_match_level == 0) {
-			overwrite_value = true;
-		}
+		value_dst = &entry->value;
+		value_len_dst = &entry->value_len;
 	}
 
 	if (!skip_ws(loader)) {
@@ -437,10 +438,10 @@ static bool read_entry(struct sfdo_desktop_file_loader *loader) {
 		return false;
 	}
 
-	if (overwrite_value) {
-		free(entry->value);
-		entry->value = NULL;
-		entry->value_len = 0;
+	if (value_dst != NULL) {
+		free(*value_dst);
+		*value_dst = NULL;
+		*value_len_dst = 0;
 		reset_buf(loader);
 
 		entry->line = line;
@@ -484,7 +485,7 @@ static bool read_entry(struct sfdo_desktop_file_loader *loader) {
 			escaped = true;
 			continue;
 		}
-		if (overwrite_value && !add_rune(loader)) {
+		if (value_dst != NULL && !add_rune(loader)) {
 			return false;
 		}
 		advance(loader);
@@ -498,15 +499,15 @@ static bool read_entry(struct sfdo_desktop_file_loader *loader) {
 		return false;
 	}
 
-	if (overwrite_value) {
-		entry->value = malloc(loader->buf_len + 1);
-		if (entry->value == NULL) {
+	if (value_dst != NULL) {
+		*value_dst = malloc(loader->buf_len + 1);
+		if (*value_dst == NULL) {
 			set_error_at(loader, SFDO_DESKTOP_FILE_ERROR_OOM, line, column);
 			return false;
 		}
-		memcpy(entry->value, loader->buf, loader->buf_len);
-		entry->value[loader->buf_len] = '\0';
-		entry->value_len = loader->buf_len;
+		memcpy(*value_dst, loader->buf, loader->buf_len);
+		(*value_dst)[loader->buf_len] = '\0';
+		*value_len_dst = loader->buf_len;
 	}
 
 	return true;
@@ -525,7 +526,7 @@ static bool validate_group(struct sfdo_desktop_file_loader *loader) {
 		if (map_entry->base.key != NULL) {
 			struct sfdo_desktop_file_entry *entry = map_entry->entry;
 			assert(entry != NULL);
-			if (!entry->has_default) {
+			if (entry->value == NULL) {
 				set_error_at(loader, SFDO_DESKTOP_FILE_ERROR_NO_DEFAULT_VALUE, entry->line,
 						entry->column);
 				return false;
@@ -712,6 +713,7 @@ SFDO_API void sfdo_desktop_file_document_destroy(struct sfdo_desktop_file_docume
 				assert(entry != NULL);
 				free(entry->key);
 				free(entry->value);
+				free(entry->localized_value);
 				free(entry);
 			}
 		}
@@ -805,6 +807,17 @@ SFDO_API const char *sfdo_desktop_file_entry_get_value(
 		*len = entry->value_len;
 	}
 	return entry->value;
+}
+
+SFDO_API const char *sfdo_desktop_file_entry_get_localized_value(
+		struct sfdo_desktop_file_entry *entry, size_t *len) {
+	if (entry->localized_value == NULL) {
+		return sfdo_desktop_file_entry_get_value(entry, len);
+	}
+	if (len != NULL) {
+		*len = entry->localized_value_len;
+	}
+	return entry->localized_value;
 }
 
 SFDO_API void sfdo_desktop_file_entry_get_location(
