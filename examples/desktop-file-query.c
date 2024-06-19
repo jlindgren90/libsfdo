@@ -45,7 +45,7 @@ int main(int argc, char **argv) {
 	FILE *fp = fopen(path, "r");
 	if (fp == NULL) {
 		fprintf(stderr, "Failed to open: %s: %s\n", path, strerror(errno));
-		return 1;
+		exit(1);
 	}
 
 	argv += 1;
@@ -58,7 +58,7 @@ int main(int argc, char **argv) {
 		queries = calloc(n_queries, sizeof(*queries));
 		if (queries == NULL) {
 			fprintf(stderr, "Memory allocation error\n");
-			return 1;
+			exit(1);
 		}
 	}
 
@@ -83,7 +83,7 @@ int main(int argc, char **argv) {
 	if (doc == NULL) {
 		fprintf(stderr, "%d:%d: %s\n", error.line, error.column,
 				sfdo_desktop_file_error_code_get_description(error.code));
-		return 1;
+		exit(1);
 	}
 
 	for (struct sfdo_desktop_file_group *group = sfdo_desktop_file_document_get_groups(doc);

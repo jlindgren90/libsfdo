@@ -63,7 +63,7 @@ int main(int argc, char **argv) {
 	struct sfdo_desktop_db *db = sfdo_desktop_db_load(ctx, locale);
 	if (db == NULL) {
 		fprintf(stderr, "Failed to load a database\n");
-		return 1;
+		exit(1);
 	}
 
 	size_t n_entries;

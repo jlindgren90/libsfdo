@@ -1,5 +1,6 @@
 #include <sfdo-basedir.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 static void print_dir(const char *name, const char *dir, size_t dir_len) {
 	printf("%s: ", name);
@@ -21,7 +22,7 @@ int main(void) {
 	struct sfdo_basedir_ctx *ctx = sfdo_basedir_ctx_create();
 	if (ctx == NULL) {
 		fprintf(stderr, "sfdo_basedir_ctx_create() failed\n");
-		return 1;
+		exit(1);
 	}
 
 	const char *dir;

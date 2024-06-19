@@ -113,7 +113,7 @@ int main(int argc, char **argv) {
 	struct sfdo_desktop_db *db = sfdo_desktop_db_load(ctx, NULL);
 	if (db == NULL) {
 		fprintf(stderr, "Failed to load a database\n");
-		return 1;
+		exit(1);
 	}
 
 	struct sfdo_desktop_exec *exec = get_exec(db, id, id_len, action);
@@ -131,7 +131,7 @@ int main(int argc, char **argv) {
 			if (child == 0) {
 				execvp(args[0], (char *const *)args);
 				fprintf(stderr, "execvp() failed: %s\n", strerror(errno));
-				return 1;
+				exit(1);
 			}
 		}
 		sfdo_desktop_exec_command_destroy(cmd);

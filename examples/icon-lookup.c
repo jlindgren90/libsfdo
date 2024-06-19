@@ -75,18 +75,16 @@ int main(int argc, char **argv) {
 		names[i].len = strlen(argv[i]);
 	}
 
-	bool ok = false;
-
 	struct sfdo_basedir_ctx *basedir_ctx = sfdo_basedir_ctx_create();
 	if (basedir_ctx == NULL) {
 		fprintf(stderr, "sfdo_basedir_ctx_create() failed\n");
-		goto err_basedir;
+		exit(1);
 	}
 
 	struct sfdo_icon_ctx *ctx = sfdo_icon_ctx_create(basedir_ctx);
 	if (ctx == NULL) {
 		fprintf(stderr, "sfdo_icon_ctx_create() failed\n");
-		goto err_icon;
+		exit(1);
 	}
 
 	sfdo_icon_ctx_set_log_handler(
@@ -95,25 +93,25 @@ int main(int argc, char **argv) {
 	struct sfdo_icon_theme *theme = sfdo_icon_theme_load(ctx, theme_name, load_options);
 	if (theme == NULL) {
 		fprintf(stderr, "Failed to load the icon theme\n");
-		goto err_load;
+		exit(1);
 	}
+
+	bool found = false;
 
 	struct sfdo_icon_file *file =
 			sfdo_icon_theme_lookup_best(theme, names, n_names, size, scale, lookup_options);
 	if (file == SFDO_ICON_FILE_INVALID) {
 		fprintf(stderr, "Failed to look up the icon\n");
+		exit(1);
 	} else if (file != NULL) {
 		printf("%s\n", sfdo_icon_file_get_path(file, NULL));
-		ok = true;
+		found = true;
 	}
 
 	sfdo_icon_file_destroy(file);
-
 	sfdo_icon_theme_destroy(theme);
-err_load:
 	sfdo_icon_ctx_destroy(ctx);
-err_icon:
 	sfdo_basedir_ctx_destroy(basedir_ctx);
-err_basedir:
-	return ok ? 0 : 1;
+
+	return found ? 0 : 1;
 }
