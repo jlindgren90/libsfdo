@@ -106,6 +106,7 @@ static bool init_dir_list(struct sfdo_string **ptr, char **mem_ptr, size_t *n_di
 		sfdo_membuild_add(&mem_buf, home_var_path, home_path_len, NULL);
 		if (sfdo_path_needs_extra_slash(home_var_path, home_path_len)) {
 			sfdo_membuild_add(&mem_buf, "/", 1, NULL);
+			++dir->len;
 		}
 	} else {
 		sfdo_membuild_add(&mem_buf, home, home_len, home_fallback, home_fallback_len, NULL);
@@ -170,6 +171,7 @@ static bool init_dir(struct sfdo_string *ptr, char **mem_ptr, const char *home, 
 		sfdo_membuild_add(&mem_buf, var_path, path_len, NULL);
 		if (sfdo_path_needs_extra_slash(var_path, path_len)) {
 			sfdo_membuild_add(&mem_buf, "/", 1, NULL);
+			++ptr->len;
 		}
 	} else {
 		sfdo_membuild_add(&mem_buf, home, home_len, home_fallback, home_fallback_len, NULL);
