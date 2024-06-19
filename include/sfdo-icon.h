@@ -11,6 +11,9 @@
 // Note that the icon lookup algorithm used by libsfdo-icon doesn't match the specification;
 // instead, an algorithm similar to GTK's is used as it results in better matches.
 
+// Indicates that looking up an icon has failed.
+#define SFDO_ICON_FILE_INVALID ((struct sfdo_icon_file *)-1)
+
 struct sfdo_basedir_ctx;
 
 struct sfdo_icon_ctx;
@@ -52,14 +55,6 @@ enum sfdo_icon_theme_lookup_options {
 	SFDO_ICON_THEME_LOOKUP_OPTION_NO_RESCAN = (1 << 1),
 };
 
-enum sfdo_icon_theme_lookup_error {
-	SFDO_ICON_THEME_LOOKUP_ERROR_NONE = 0,
-
-	SFDO_ICON_THEME_LOOKUP_ERROR_NOT_FOUND,
-	SFDO_ICON_THEME_LOOKUP_ERROR_RESCAN,
-	SFDO_ICON_THEME_LOOKUP_ERROR_OOM,
-};
-
 // Create a context.
 //
 // basedir_ctx is used to create the default list of paths which are scanned for icon themes.
@@ -85,7 +80,7 @@ void sfdo_icon_ctx_set_log_handler(struct sfdo_icon_ctx *ctx, enum sfdo_log_leve
 //
 // options is a result of bitwise OR of zero or more enum sfdo_icon_theme_load_options values.
 //
-// Returns NULL on memory allocation error.
+// Returns NULL on failure.
 struct sfdo_icon_theme *sfdo_icon_theme_load(
 		struct sfdo_icon_ctx *ctx, const char *name, int options);
 
@@ -95,7 +90,7 @@ struct sfdo_icon_theme *sfdo_icon_theme_load(
 //
 // options is a result of bitwise OR of zero or more enum sfdo_icon_theme_load_options values.
 //
-// Returns NULL on memory allocation error.
+// Returns NULL on failure.
 struct sfdo_icon_theme *sfdo_icon_theme_load_from(struct sfdo_icon_ctx *ctx, const char *name,
 		const struct sfdo_string *basedirs, size_t n_basedirs, int options);
 
@@ -115,11 +110,9 @@ bool sfdo_icon_theme_rescan(struct sfdo_icon_theme *theme);
 //
 // If name_len is equal to SFDO_NT, name is assumed to be null-terminated.
 //
-// Returns NULL on failure, in which case the information about the error is saved to error. error
-// may be NULL.
+// Returns NULL if no file has been found, or SFDO_ICON_FILE_INVALID on failure.
 struct sfdo_icon_file *sfdo_icon_theme_lookup(struct sfdo_icon_theme *theme, const char *name,
-		size_t name_len, int size, int scale, int options,
-		enum sfdo_icon_theme_lookup_error *error);
+		size_t name_len, int size, int scale, int options);
 
 // Find the best matching icon file by names, size, and scale.
 //
@@ -127,15 +120,13 @@ struct sfdo_icon_file *sfdo_icon_theme_lookup(struct sfdo_icon_theme *theme, con
 //
 // If name_len is equal to SFDO_NT, name is assumed to be null-terminated.
 //
-// Returns NULL on failure, in which case the information about the error is saved to error. error
-// may be NULL.
+// Returns NULL if no file has been found, or SFDO_ICON_FILE_INVALID on failure.
 struct sfdo_icon_file *sfdo_icon_theme_lookup_best(struct sfdo_icon_theme *theme,
-		const struct sfdo_string *names, size_t n_names, int size, int scale, int options,
-		enum sfdo_icon_theme_lookup_error *error);
+		const struct sfdo_string *names, size_t n_names, int size, int scale, int options);
 
 // Destroy an icon file.
 //
-// file may be NULL, in which case the function is no-op.
+// file may be NULL or SFDO_ICON_FILE_INVALID, in which case the function is no-op.
 void sfdo_icon_file_destroy(struct sfdo_icon_file *file);
 
 // Get an icon file path.

@@ -99,8 +99,10 @@ int main(int argc, char **argv) {
 	}
 
 	struct sfdo_icon_file *file =
-			sfdo_icon_theme_lookup_best(theme, names, n_names, size, scale, lookup_options, NULL);
-	if (file != NULL) {
+			sfdo_icon_theme_lookup_best(theme, names, n_names, size, scale, lookup_options);
+	if (file == SFDO_ICON_FILE_INVALID) {
+		fprintf(stderr, "Failed to look up the icon\n");
+	} else if (file != NULL) {
 		printf("%s\n", sfdo_icon_file_get_path(file, NULL));
 		ok = true;
 	}
