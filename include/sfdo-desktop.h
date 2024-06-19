@@ -17,8 +17,14 @@ enum sfdo_desktop_entry_type {
 };
 
 enum sfdo_desktop_entry_startup_notify {
+	// The application does not work with startup notification at all.
 	SFDO_DESKTOP_ENTRY_STARTUP_NOTIFY_FALSE,
+
+	// The application will send a "remove" message when started with the DESKTOP_STARTUP_ID
+	// environment variable set.
 	SFDO_DESKTOP_ENTRY_STARTUP_NOTIFY_TRUE,
+
+	// The startup notification support status is unknown.
 	SFDO_DESKTOP_ENTRY_STARTUP_NOTIFY_UNKNOWN,
 };
 
@@ -202,11 +208,7 @@ const struct sfdo_string *sfdo_desktop_entry_get_implements(
 const struct sfdo_string *sfdo_desktop_entry_get_keywords(
 		struct sfdo_desktop_entry *entry, size_t *n_keywords);
 
-// Returns SFDO_DESKTOP_ENTRY_STARTUP_NOTIFY_TRUE if it is known that the application will send a
-// "remove" message when started with the DESKTOP_STARTUP_ID environment variable set,
-// SFDO_DESKTOP_ENTRY_STARTUP_NOTIFY_FALSE it is known that the application does not work with
-// startup notification at all, or SFDO_DESKTOP_ENTRY_STARTUP_NOTIFY_UNKNOWN if the corresponding
-// key is absent.
+// Get the startup notification support status.
 //
 // The desktop entry type must be "Application".
 enum sfdo_desktop_entry_startup_notify sfdo_desktop_entry_get_startup_notify(
