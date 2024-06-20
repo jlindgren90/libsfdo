@@ -1,7 +1,7 @@
 project(
   'libsfdo',
   'c',
-  version: '0.1.0',
+  version: '0.1.2',
   license: 'BSD-2-Clause',
   default_options: [
     'c_std=c11',
