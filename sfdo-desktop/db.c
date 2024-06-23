@@ -608,7 +608,7 @@ static enum sfdo_desktop_entry_load_result exec_add_unquoted(struct sfdo_desktop
 
 	size_t field_i = scanner->i;
 
-	char standalone;
+	char standalone = '\0';
 	if (exec_try_consume_standalone(scanner, &standalone)) {
 		switch (standalone) {
 		case 'f':
