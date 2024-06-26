@@ -11,7 +11,7 @@ struct query {
 };
 
 static void die_usage(const char *prog) {
-	printf("Usage: %s [-d] [-l locale] <path> [group:key...]\n", prog);
+	printf("Usage: %s [-d] [-l locale] <path> [group/key...]\n", prog);
 	exit(1);
 }
 
