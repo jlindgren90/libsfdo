@@ -219,7 +219,7 @@ static bool rescan_node(struct sfdo_icon_theme_node *node, struct sfdo_icon_them
 		sfdo_strbuild_reset(pb);
 		if (!sfdo_strbuild_add(pb, basedir->data, basedir->len, node->name, node->name_len, NULL)) {
 			logger_write_oom(logger);
-			return false;
+			goto end;
 		}
 
 		check_dir_stats(&scanner.state, node_dir_i++, pb->data);
@@ -253,7 +253,7 @@ static bool rescan_node(struct sfdo_icon_theme_node *node, struct sfdo_icon_them
 			if (!sfdo_strbuild_add(pb, basedir->data, basedir->len, node->name, node->name_len, "/",
 						1, subdir->path.data, subdir->path.len, NULL)) {
 				logger_write_oom(logger);
-				return false;
+				goto end;
 			}
 
 			check_dir_stats(&scanner.state, dir_i, pb->data);
