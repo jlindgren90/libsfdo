@@ -967,7 +967,7 @@ static enum sfdo_desktop_entry_load_result entry_load(struct sfdo_desktop_loader
 
 	bool hidden;
 	if ((r = load_boolean(loader, group, "Hidden", 6, &hidden)) != SFDO_DESKTOP_ENTRY_LOAD_OK) {
-		return SFDO_DESKTOP_ENTRY_LOAD_ERROR;
+		return r;
 	}
 	if (hidden) {
 		return SFDO_DESKTOP_ENTRY_LOAD_OK;
