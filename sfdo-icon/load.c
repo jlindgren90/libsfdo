@@ -4,13 +4,13 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "api.h"
-#include "hash.h"
-#include "icon.h"
-#include "membuild.h"
-#include "path.h"
-#include "striter.h"
-#include "strpool.h"
+#include "common/api.h"
+#include "common/hash.h"
+#include "common/icon.h"
+#include "common/membuild.h"
+#include "common/path.h"
+#include "common/striter.h"
+#include "common/strpool.h"
 
 #define DEFAULT_THEME_NAME "hicolor"
 #define INDEX_THEME_PATH "/index.theme"

@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "strpool.h"
+#include "common/strpool.h"
 
 struct sfdo_strpool_chunk {
 	struct sfdo_strpool_chunk *next;

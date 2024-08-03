@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "membuild.h"
+#include "common/membuild.h"
 
 bool sfdo_membuild_setup(struct sfdo_membuild *membuild, size_t cap) {
 	if (cap > 0) {

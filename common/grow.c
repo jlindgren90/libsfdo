@@ -1,6 +1,6 @@
 #include <stdlib.h>
 
-#include "grow.h"
+#include "common/grow.h"
 
 bool sfdo_grow(void *data_ptr, size_t *cap, size_t len, size_t entry_size) {
 	return sfdo_grow_n(data_ptr, cap, len, entry_size, 1);

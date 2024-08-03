@@ -3,10 +3,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "api.h"
-#include "membuild.h"
-#include "path.h"
-#include "striter.h"
+#include "common/api.h"
+#include "common/membuild.h"
+#include "common/path.h"
+#include "common/striter.h"
 
 #define DATA_HOME_FALLBACK "/.local/share/"
 #define CONFIG_HOME_FALLBACK "/.config/"

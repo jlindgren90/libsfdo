@@ -11,8 +11,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include "grow.h"
-#include "icon.h"
+#include "common/grow.h"
+#include "common/icon.h"
 
 struct sfdo_icon_cache_image {
 	const char *name; // Borrowed from data

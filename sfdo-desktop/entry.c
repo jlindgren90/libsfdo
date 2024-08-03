@@ -3,8 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "api.h"
-#include "desktop.h"
+#include "common/api.h"
+#include "common/desktop.h"
 
 static const char *unpack_string(struct sfdo_string *string, size_t *len) {
 	if (len != NULL) {

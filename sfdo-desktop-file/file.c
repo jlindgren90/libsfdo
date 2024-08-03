@@ -4,10 +4,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "api.h"
-#include "grow.h"
-#include "hash.h"
-#include "membuild.h"
+#include "common/api.h"
+#include "common/grow.h"
+#include "common/hash.h"
+#include "common/membuild.h"
 
 #define RUNE_EOF (-1)
 #define RUNE_NONE (-2)

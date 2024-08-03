@@ -35,7 +35,7 @@ add_project_arguments(cc.get_supported_arguments([
 
 include_dir = include_directories('include')
 
-subdir('sfdo')
+subdir('common')
 
 private = static_library(
   'sfdo-private',

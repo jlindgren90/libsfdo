@@ -1,4 +1,4 @@
-#include "striter.h"
+#include "common/striter.h"
 
 bool sfdo_striter(const char *list, char sep, size_t *iter, size_t *start, size_t *len) {
 	if (list[*iter] == '\0') {

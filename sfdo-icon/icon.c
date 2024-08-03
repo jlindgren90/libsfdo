@@ -4,9 +4,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "api.h"
-#include "icon.h"
-#include "membuild.h"
+#include "common/api.h"
+#include "common/icon.h"
+#include "common/membuild.h"
 
 #define ICONS_HOME_DIR "/.icons/"
 #define ICONS_SUFFIX "icons/"

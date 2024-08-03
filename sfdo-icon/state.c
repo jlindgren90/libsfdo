@@ -1,7 +1,7 @@
 #include <stdlib.h>
 
-#include "icon.h"
-#include "strpool.h"
+#include "common/icon.h"
+#include "common/strpool.h"
 
 bool icon_state_init(struct sfdo_icon_state *state, size_t n_dirs) {
 	state->dir_mtimes = calloc(n_dirs, sizeof(*state->dir_mtimes));

@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "strbuild.h"
+#include "common/strbuild.h"
 
 void sfdo_strbuild_init(struct sfdo_strbuild *strbuild) {
 	strbuild->data = NULL;

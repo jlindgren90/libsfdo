@@ -6,10 +6,10 @@
 #include <string.h>
 #include <sys/stat.h>
 
-#include "api.h"
-#include "grow.h"
-#include "icon.h"
-#include "strpool.h"
+#include "common/api.h"
+#include "common/grow.h"
+#include "common/icon.h"
+#include "common/strpool.h"
 
 #define ICON_THEME_CACHE_PATH "/icon-theme.cache"
 

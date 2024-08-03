@@ -7,14 +7,14 @@
 #include <string.h>
 #include <sys/stat.h>
 
-#include "api.h"
-#include "desktop.h"
-#include "grow.h"
-#include "membuild.h"
-#include "path.h"
-#include "strbuild.h"
-#include "striter.h"
-#include "strpool.h"
+#include "common/api.h"
+#include "common/desktop.h"
+#include "common/grow.h"
+#include "common/membuild.h"
+#include "common/path.h"
+#include "common/strbuild.h"
+#include "common/striter.h"
+#include "common/strpool.h"
 
 #define ENTRY_DESKTOP_SUFFIX ".desktop"
 #define ENTRY_DIRECTORY_SUFFIX ".directory"

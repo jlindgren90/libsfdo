@@ -1,4 +1,4 @@
-#include "log.h"
+#include "common/log.h"
 
 static void noop_handler(enum sfdo_log_level level, const char *fmt, va_list args, void *data) {
 	(void)level;

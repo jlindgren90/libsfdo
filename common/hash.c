@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "hash.h"
+#include "common/hash.h"
 
 static uint32_t hash_str(const char *s, size_t len) {
 	// FNV-1a, 32 bit

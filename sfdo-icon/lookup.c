@@ -4,8 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "api.h"
-#include "icon.h"
+#include "common/api.h"
+#include "common/icon.h"
 
 #define EXTENSION_LEN 3
 
