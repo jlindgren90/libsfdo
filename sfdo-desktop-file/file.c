@@ -456,37 +456,40 @@ static bool read_entry(struct sfdo_desktop_file_loader *loader) {
 		if (!peek(loader)) {
 			return false;
 		}
-		int32_t rune = loader->rune;
-		if (is_end(rune)) {
+		if (is_end(loader->rune)) {
 			break;
 		} else if (escaped) {
-			switch (rune) {
+			char byte;
+			switch (loader->rune) {
 			case 's':
-				rune = ' ';
+				byte = ' ';
 				break;
 			case 'n':
-				rune = '\n';
+				byte = '\n';
 				break;
 			case 't':
-				rune = '\t';
+				byte = '\t';
 				break;
 			case 'r':
-				rune = '\r';
+				byte = '\r';
 				break;
 			case '\\':
-				rune = '\\';
+				byte = '\\';
 				break;
 			default:
 				set_error(loader, SFDO_DESKTOP_FILE_ERROR_SYNTAX);
 				return false;
 			}
+			if (value_dst != NULL && !add_bytes(loader, &byte, 1)) {
+				return false;
+			}
 			escaped = false;
-		} else if (rune == '\\') {
+		} else if (loader->rune == '\\') {
 			escaped = true;
-			continue;
-		}
-		if (value_dst != NULL && !add_rune(loader)) {
-			return false;
+		} else {
+			if (value_dst != NULL && !add_rune(loader)) {
+				return false;
+			}
 		}
 		advance(loader);
 	}
