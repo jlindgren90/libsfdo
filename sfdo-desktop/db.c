@@ -43,6 +43,8 @@ struct sfdo_desktop_loader {
 	struct sfdo_desktop_db *db;
 	const char *locale;
 
+	size_t n_entries;
+
 	struct sfdo_strbuild path_buf;
 	struct sfdo_strbuild id_buf;
 
@@ -1319,7 +1321,7 @@ static bool scan_dir(struct sfdo_desktop_loader *loader, size_t basedir_len) {
 			switch (result) {
 			case SFDO_DESKTOP_ENTRY_LOAD_OK:
 				if (map_entry->entry != NULL) {
-					++db->n_entries;
+					++loader->n_entries;
 				}
 				continue;
 			case SFDO_DESKTOP_ENTRY_LOAD_ERROR:
@@ -1443,13 +1445,14 @@ SFDO_API struct sfdo_desktop_db *sfdo_desktop_db_load_from(struct sfdo_desktop_c
 		}
 	}
 
-	if (db->n_entries > 0) {
-		db->entries_list = calloc(db->n_entries, sizeof(struct sfdo_desktop_entry *));
+	if (loader.n_entries > 0) {
+		db->entries_list = calloc(loader.n_entries, sizeof(struct sfdo_desktop_entry *));
 		if (db->entries_list == NULL) {
 			logger_write_oom(&db->ctx->logger);
 			goto end;
 		}
 	}
+	db->n_entries = loader.n_entries;
 
 	struct sfdo_hashmap *entries = &db->entries;
 	size_t list_i = 0;
