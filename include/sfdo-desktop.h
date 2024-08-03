@@ -4,9 +4,9 @@
 #include <sfdo-common.h>
 #include <stdbool.h>
 
-// libsfdo-desktop implements the desktop entry specification:
+// libsfdo-desktop implements the desktop entry specification, version 1.5:
 //
-//  https://specifications.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html
+//  https://specifications.freedesktop.org/desktop-entry-spec/1.5/
 
 struct sfdo_basedir_ctx;
 

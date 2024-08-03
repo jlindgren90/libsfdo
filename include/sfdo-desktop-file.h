@@ -6,9 +6,9 @@
 #include <stdio.h>
 
 // libsfdo-desktop-file implements the desktop entry file format from the desktop entry
-// specification:
+// specification, version 1.5:
 //
-//  https://specifications.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html
+//  https://specifications.freedesktop.org/desktop-entry-spec/1.5/
 
 enum sfdo_desktop_file_error_code {
 	SFDO_DESKTOP_FILE_ERROR_NONE = 0,

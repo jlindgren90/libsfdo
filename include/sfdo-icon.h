@@ -4,9 +4,9 @@
 #include <sfdo-common.h>
 #include <stdbool.h>
 
-// libsfdo-icon implements the icon theme specification:
+// libsfdo-icon implements the icon theme specification, version 0.13:
 //
-//  https://specifications.freedesktop.org/icon-theme-spec/icon-theme-spec-latest.html
+//  https://specifications.freedesktop.org/icon-theme-spec/0.13/
 //
 // Note that the icon lookup algorithm used by libsfdo-icon doesn't match the specification;
 // instead, an algorithm similar to GTK's is used as it results in better matches.

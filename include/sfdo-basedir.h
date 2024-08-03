@@ -4,9 +4,9 @@
 #include <sfdo-common.h>
 #include <stdbool.h>
 
-// libsfdo-basedir implements the XDG base directory specification:
+// libsfdo-basedir implements the XDG base directory specification, version 0.8:
 //
-//   https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
+//   https://specifications.freedesktop.org/basedir-spec/0.8/
 //
 // For convenience, all paths end with a slash.
 
