@@ -45,6 +45,11 @@ static inline bool is_absolute(const char *path) {
 	return path[0] == '/';
 }
 
+static inline void finalize_dir(struct sfdo_membuild *mem_buf, struct sfdo_string *dir) {
+	dir->len = (size_t)(mem_buf->data + mem_buf->len - dir->data);
+	sfdo_membuild_add(mem_buf, "", 1, NULL);
+}
+
 static bool init_dir_list(struct sfdo_string **ptr, char **mem_ptr, size_t *n_dirs_ptr,
 		const char *home, size_t home_len, const char *home_var_name, const char *home_fallback,
 		size_t home_fallback_len, const char *list_var_name, const char *list_fallback) {
@@ -100,18 +105,17 @@ static bool init_dir_list(struct sfdo_string **ptr, char **mem_ptr, size_t *n_di
 	size_t dir_i = 0;
 	struct sfdo_string *dir = &dirs[dir_i++];
 	dir->data = mem_buf.data + mem_buf.len;
-	dir->len = home_path_len;
 
 	if (home_var_path_valid) {
 		sfdo_membuild_add(&mem_buf, home_var_path, home_path_len, NULL);
 		if (sfdo_path_needs_extra_slash(home_var_path, home_path_len)) {
 			sfdo_membuild_add(&mem_buf, "/", 1, NULL);
-			++dir->len;
 		}
 	} else {
 		sfdo_membuild_add(&mem_buf, home, home_len, home_fallback, home_fallback_len, NULL);
 	}
-	sfdo_membuild_add(&mem_buf, "", 1, NULL);
+
+	finalize_dir(&mem_buf, dir);
 
 	iter = 0;
 	while (sfdo_striter(list, ':', &iter, &path_start, &path_len)) {
@@ -119,13 +123,13 @@ static bool init_dir_list(struct sfdo_string **ptr, char **mem_ptr, size_t *n_di
 		if (path_len > 0 && is_absolute(path)) {
 			dir = &dirs[dir_i++];
 			dir->data = mem_buf.data + mem_buf.len;
-			dir->len = path_len;
+
 			sfdo_membuild_add(&mem_buf, path, path_len, NULL);
 			if (sfdo_path_needs_extra_slash(path, path_len)) {
 				sfdo_membuild_add(&mem_buf, "/", 1, NULL);
-				++dir->len;
 			}
-			sfdo_membuild_add(&mem_buf, "", 1, NULL);
+
+			finalize_dir(&mem_buf, dir);
 		}
 	}
 
@@ -165,18 +169,17 @@ static bool init_dir(struct sfdo_string *ptr, char **mem_ptr, const char *home, 
 	}
 
 	ptr->data = mem_buf.data;
-	ptr->len = path_len;
 
 	if (var_path_valid) {
 		sfdo_membuild_add(&mem_buf, var_path, path_len, NULL);
 		if (sfdo_path_needs_extra_slash(var_path, path_len)) {
 			sfdo_membuild_add(&mem_buf, "/", 1, NULL);
-			++ptr->len;
 		}
 	} else {
 		sfdo_membuild_add(&mem_buf, home, home_len, home_fallback, home_fallback_len, NULL);
 	}
-	sfdo_membuild_add(&mem_buf, "", 1, NULL);
+
+	finalize_dir(&mem_buf, ptr);
 
 	assert(mem_buf.len == mem_size);
 
