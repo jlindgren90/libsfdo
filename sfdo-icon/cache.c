@@ -195,6 +195,7 @@ struct sfdo_icon_cache *icon_cache_create(
 
 	struct stat statbuf;
 	if (fstat(fd, &statbuf) != 0 || !S_ISREG(statbuf.st_mode)) {
+		logger_write(logger, SFDO_LOG_LEVEL_DEBUG, "Not a regular file");
 		goto err_stat;
 	}
 
