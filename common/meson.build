@@ -1,4 +1,5 @@
 private_src = files(
+  'dirs.c',
   'grow.c',
   'hash.c',
   'log.c',

@@ -8,9 +8,8 @@
 #include <sys/stat.h>
 
 #include "common/api.h"
+#include "common/dirs.h"
 #include "common/grow.h"
-#include "common/membuild.h"
-#include "common/path.h"
 #include "common/strbuild.h"
 #include "common/striter.h"
 #include "common/strpool.h"
@@ -1353,54 +1352,18 @@ static struct sfdo_desktop_db *db_create(
 		goto err_db;
 	}
 
-	db->n_basedirs = n_basedirs;
-	db->basedirs = calloc(n_basedirs, sizeof(*db->basedirs));
-	if (db->basedirs == NULL) {
-		goto err_basedirs;
-	}
-
-	size_t mem_size = 0;
-	for (size_t i = 0; i < n_basedirs; i++) {
-		const struct sfdo_string *dir = &basedirs[i];
-		mem_size += dir->len + 1;
-		if (sfdo_path_needs_extra_slash(dir->data, dir->len)) {
-			++mem_size;
-		}
-	}
-
-	struct sfdo_membuild mem_buf;
-	if (!sfdo_membuild_setup(&mem_buf, mem_size)) {
-		goto err_membuild;
+	if (!sfdo_dirs_store(basedirs, n_basedirs, &db->basedirs, &db->n_basedirs, &db->basedirs_mem)) {
+		goto err_dirs;
 	}
 
 	db->ctx = ctx;
-
-	for (size_t i = 0; i < n_basedirs; i++) {
-		const struct sfdo_string *src = &basedirs[i];
-		struct sfdo_string *dst = &db->basedirs[i];
-		size_t dst_len = src->len;
-
-		dst->data = mem_buf.data + mem_buf.len;
-		sfdo_membuild_add(&mem_buf, src->data, src->len, NULL);
-		if (sfdo_path_needs_extra_slash(src->data, src->len)) {
-			++dst_len;
-			sfdo_membuild_add(&mem_buf, "/", 1, NULL);
-		}
-		sfdo_membuild_add(&mem_buf, "", 1, NULL);
-		dst->len = dst_len;
-	}
-
-	db->basedirs_mem = mem_buf.data;
-	assert(mem_buf.len == mem_size);
 
 	sfdo_hashmap_init(&db->entries, sizeof(struct sfdo_desktop_map_entry));
 	sfdo_strpool_init(&db->strings);
 
 	return db;
 
-err_membuild:
-	free(db->basedirs);
-err_basedirs:
+err_dirs:
 	free(db);
 err_db:
 	logger_write_oom(&ctx->logger);

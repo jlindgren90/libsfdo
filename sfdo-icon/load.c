@@ -5,9 +5,8 @@
 #include <string.h>
 
 #include "common/api.h"
+#include "common/dirs.h"
 #include "common/hash.h"
-#include "common/membuild.h"
-#include "common/path.h"
 #include "common/striter.h"
 #include "common/strpool.h"
 #include "sfdo-icon/internal.h"
@@ -510,49 +509,16 @@ static struct sfdo_icon_theme *theme_create(
 		goto err_theme;
 	}
 
-	theme->ctx = ctx;
-
-	theme->n_basedirs = n_basedirs;
-	theme->basedirs = calloc(n_basedirs, sizeof(*theme->basedirs));
-	if (theme->basedirs == NULL) {
-		goto err_basedirs;
+	if (!sfdo_dirs_store(
+				basedirs, n_basedirs, &theme->basedirs, &theme->n_basedirs, &theme->basedirs_mem)) {
+		goto err_dirs;
 	}
-
-	size_t mem_size = 0;
-	for (size_t i = 0; i < n_basedirs; i++) {
-		const struct sfdo_string *dir = &basedirs[i];
-		mem_size += dir->len + 1;
-		if (sfdo_path_needs_extra_slash(dir->data, dir->len)) {
-			++mem_size;
-		}
-	}
-
-	struct sfdo_membuild mem_buf;
-	if (!sfdo_membuild_setup(&mem_buf, mem_size)) {
-		goto err_membuild;
-	}
-
-	for (size_t i = 0; i < n_basedirs; i++) {
-		const struct sfdo_string *src = &basedirs[i];
-		struct sfdo_string *dst = &theme->basedirs[i];
-		size_t dst_len = src->len;
-
-		dst->data = mem_buf.data + mem_buf.len;
-		sfdo_membuild_add(&mem_buf, src->data, src->len, NULL);
-		if (sfdo_path_needs_extra_slash(src->data, src->len)) {
-			++dst_len;
-			sfdo_membuild_add(&mem_buf, "/", 1, NULL);
-		}
-		sfdo_membuild_add(&mem_buf, "", 1, NULL);
-		dst->len = dst_len;
-	}
-
-	theme->basedirs_mem = mem_buf.data;
-	assert(mem_buf.len == mem_size);
 
 	if (!icon_state_init(&theme->state, n_basedirs)) {
 		goto err_icon_state;
 	}
+
+	theme->ctx = ctx;
 
 	sfdo_strbuild_init(&theme->path_buf);
 	sfdo_strpool_init(&theme->strings);
@@ -561,9 +527,8 @@ static struct sfdo_icon_theme *theme_create(
 
 err_icon_state:
 	free(theme->basedirs_mem);
-err_membuild:
 	free(theme->basedirs);
-err_basedirs:
+err_dirs:
 	free(theme);
 err_theme:
 	logger_write_oom(&ctx->logger);
