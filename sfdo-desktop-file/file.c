@@ -192,11 +192,6 @@ static inline bool add_rune(struct sfdo_desktop_file_loader *loader) {
 	return add_bytes(loader, loader->rune_bytes, loader->rune_len);
 }
 
-static inline bool terminate_string(struct sfdo_desktop_file_loader *loader, size_t *len) {
-	*len = loader->buf_len;
-	return add_bytes(loader, "", 1);
-}
-
 static inline void reset_buf(struct sfdo_desktop_file_loader *loader) {
 	loader->buf_len = 0;
 }
@@ -210,18 +205,6 @@ static bool skip_ws(struct sfdo_desktop_file_loader *loader) {
 		}
 		advance(loader);
 	}
-	return true;
-}
-
-static bool skip_ws_end(struct sfdo_desktop_file_loader *loader) {
-	if (!skip_ws(loader)) {
-		return false;
-	}
-	if (!is_end(loader->rune)) {
-		set_error(loader, SFDO_DESKTOP_FILE_ERROR_SYNTAX);
-		return false;
-	}
-	advance(loader);
 	return true;
 }
 
@@ -269,9 +252,14 @@ static bool read_group(struct sfdo_desktop_file_loader *loader) {
 	assert(loader->rune == ']');
 	advance(loader);
 
-	if (!skip_ws_end(loader)) {
+	if (!skip_ws(loader)) {
 		return false;
 	}
+	if (!is_end(loader->rune)) {
+		set_error(loader, SFDO_DESKTOP_FILE_ERROR_SYNTAX);
+		return false;
+	}
+	advance(loader);
 
 	struct sfdo_hashmap_entry *map_entry =
 			sfdo_hashmap_get(&loader->group_set, loader->buf, loader->buf_len, true);
@@ -404,8 +392,7 @@ static bool read_entry(struct sfdo_desktop_file_loader *loader) {
 		assert(loader->rune == ']');
 		advance(loader);
 
-		size_t locale_len;
-		if (!terminate_string(loader, &locale_len)) {
+		if (!add_bytes(loader, "", 1)) {
 			return false;
 		}
 
@@ -498,9 +485,8 @@ static bool read_entry(struct sfdo_desktop_file_loader *loader) {
 		return false;
 	}
 
-	if (!skip_ws_end(loader)) {
-		return false;
-	}
+	// Skip end
+	advance(loader);
 
 	if (value_dst != NULL) {
 		*value_dst = malloc(loader->buf_len + 1);
