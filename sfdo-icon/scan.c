@@ -8,8 +8,8 @@
 
 #include "common/api.h"
 #include "common/grow.h"
-#include "common/icon.h"
 #include "common/strpool.h"
+#include "sfdo-icon/internal.h"
 
 #define ICON_THEME_CACHE_PATH "/icon-theme.cache"
 

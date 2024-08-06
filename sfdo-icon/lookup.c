@@ -5,7 +5,7 @@
 #include <string.h>
 
 #include "common/api.h"
-#include "common/icon.h"
+#include "sfdo-icon/internal.h"
 
 #define EXTENSION_LEN 3
 

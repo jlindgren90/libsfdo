@@ -1,12 +1,12 @@
-#ifndef DESKTOP_H
-#define DESKTOP_H
+#ifndef SFDO_DESKTOP_INTERNAL_H
+#define SFDO_DESKTOP_INTERNAL_H
 
 #include <sfdo-desktop.h>
 #include <stddef.h>
 
-#include "hash.h"
-#include "log.h"
-#include "strpool.h"
+#include "common/hash.h"
+#include "common/log.h"
+#include "common/strpool.h"
 
 struct sfdo_desktop_ctx {
 	char *default_basedirs_mem;

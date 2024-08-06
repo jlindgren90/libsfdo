@@ -5,8 +5,8 @@
 #include <string.h>
 
 #include "common/api.h"
-#include "common/icon.h"
 #include "common/membuild.h"
+#include "sfdo-icon/internal.h"
 
 #define ICONS_HOME_DIR "/.icons/"
 #define ICONS_SUFFIX "icons/"

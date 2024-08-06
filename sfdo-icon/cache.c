@@ -12,7 +12,7 @@
 #include <unistd.h>
 
 #include "common/grow.h"
-#include "common/icon.h"
+#include "sfdo-icon/internal.h"
 
 struct sfdo_icon_cache_image {
 	const char *name; // Borrowed from data

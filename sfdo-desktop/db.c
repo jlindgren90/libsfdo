@@ -8,13 +8,13 @@
 #include <sys/stat.h>
 
 #include "common/api.h"
-#include "common/desktop.h"
 #include "common/grow.h"
 #include "common/membuild.h"
 #include "common/path.h"
 #include "common/strbuild.h"
 #include "common/striter.h"
 #include "common/strpool.h"
+#include "sfdo-desktop/internal.h"
 
 #define ENTRY_DESKTOP_SUFFIX ".desktop"
 #define ENTRY_DIRECTORY_SUFFIX ".directory"

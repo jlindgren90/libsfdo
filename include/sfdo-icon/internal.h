@@ -1,15 +1,15 @@
-#ifndef ICON_H
-#define ICON_H
+#ifndef SFDO_ICON_INTERNAL_H
+#define SFDO_ICON_INTERNAL_H
 
 #include <sfdo-common.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <time.h>
 
-#include "hash.h"
-#include "log.h"
-#include "strbuild.h"
-#include "strpool.h"
+#include "common/hash.h"
+#include "common/log.h"
+#include "common/strbuild.h"
+#include "common/strpool.h"
 
 enum sfdo_icon_format_mask {
 	SFDO_ICON_FORMAT_MASK_PNG = (1 << 0),

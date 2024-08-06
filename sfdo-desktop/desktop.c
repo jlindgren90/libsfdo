@@ -4,8 +4,8 @@
 #include <string.h>
 
 #include "common/api.h"
-#include "common/desktop.h"
 #include "common/membuild.h"
+#include "sfdo-desktop/internal.h"
 
 #define APPLICATIONS_SUFFIX "applications/"
 

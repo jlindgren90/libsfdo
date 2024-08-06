@@ -6,11 +6,11 @@
 
 #include "common/api.h"
 #include "common/hash.h"
-#include "common/icon.h"
 #include "common/membuild.h"
 #include "common/path.h"
 #include "common/striter.h"
 #include "common/strpool.h"
+#include "sfdo-icon/internal.h"
 
 #define DEFAULT_THEME_NAME "hicolor"
 #define INDEX_THEME_PATH "/index.theme"
