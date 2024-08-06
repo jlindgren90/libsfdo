@@ -5,7 +5,7 @@
 #include <stddef.h>
 
 // Used to specify that a sequence of characters is null-terminated.
-#define SFDO_NT ((size_t)-1)
+#define SFDO_NT ((size_t)(-1))
 
 struct sfdo_string {
 	const char *data; // UTF-8, null-terminated
