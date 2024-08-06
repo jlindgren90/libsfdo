@@ -66,7 +66,7 @@ static bool load_cache(struct sfdo_icon_cache *cache, struct sfdo_logger *logger
 	}
 
 	if (major != 1 || minor != 0) {
-		logger_write(logger, SFDO_LOG_LEVEL_INFO, "Expected version 1.0, got, %d.%d", major, minor);
+		logger_write(logger, SFDO_LOG_LEVEL_INFO, "Expected version 1.0, got %d.%d", major, minor);
 		return false;
 	}
 
