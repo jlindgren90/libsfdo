@@ -197,7 +197,12 @@ SFDO_API struct sfdo_basedir_ctx *sfdo_basedir_ctx_create(void) {
 		// All home fallbacks start with "/" so results will be absolute paths
 		home = "";
 	}
+
 	size_t home_len = strlen(home);
+	if (home_len >= 1 && home[home_len - 1] == '/') {
+		// Avoid duplicate slashes
+		--home_len;
+	}
 
 	if (!init_dir_list(&ctx->data_dirs, &ctx->data_dirs_mem, &ctx->n_data_dirs, home, home_len,
 				"XDG_DATA_HOME", DATA_HOME_FALLBACK, sizeof(DATA_HOME_FALLBACK) - 1,
