@@ -17,6 +17,10 @@
 struct sfdo_desktop_file_value {
 	char *data; // NULL if unset
 	size_t len;
+
+	char *items_mem;
+	struct sfdo_string *items;
+	size_t n_items;
 };
 
 struct sfdo_desktop_file_entry {
@@ -64,6 +68,9 @@ struct sfdo_desktop_file_loader {
 
 	char *buf;
 	size_t buf_len, buf_cap;
+
+	size_t *item_buf;
+	size_t item_buf_len, item_buf_cap;
 
 	int line, column;
 	FILE *fp;
@@ -194,12 +201,23 @@ static bool add_bytes(struct sfdo_desktop_file_loader *loader, char *bytes, size
 	return true;
 }
 
+static bool add_item(struct sfdo_desktop_file_loader *loader, size_t end) {
+	if (!sfdo_grow(&loader->item_buf, &loader->item_buf_cap, loader->item_buf_len,
+				sizeof(*loader->item_buf))) {
+		set_error(loader, SFDO_DESKTOP_FILE_ERROR_OOM);
+		return false;
+	}
+	loader->item_buf[loader->item_buf_len++] = end;
+	return true;
+}
+
 static inline bool add_rune(struct sfdo_desktop_file_loader *loader) {
 	return add_bytes(loader, loader->rune_bytes, loader->rune_len);
 }
 
 static inline void reset_buf(struct sfdo_desktop_file_loader *loader) {
 	loader->buf_len = 0;
+	loader->item_buf_len = 0;
 }
 
 static bool skip_ws(struct sfdo_desktop_file_loader *loader) {
@@ -312,6 +330,8 @@ static bool read_group(struct sfdo_desktop_file_loader *loader) {
 
 static void finish_value(struct sfdo_desktop_file_value *value) {
 	free(value->data);
+	free(value->items_mem);
+	free(value->items);
 }
 
 static bool read_entry(struct sfdo_desktop_file_loader *loader) {
@@ -444,6 +464,9 @@ static bool read_entry(struct sfdo_desktop_file_loader *loader) {
 	line = loader->line;
 	column = loader->column;
 
+	// Trailing empty items not followed by a separator are ignored
+	bool curr_item_is_empty = true;
+
 	bool escaped = false;
 	while (true) {
 		if (!peek(loader)) {
@@ -451,7 +474,9 @@ static bool read_entry(struct sfdo_desktop_file_loader *loader) {
 		}
 		if (is_end(loader->rune)) {
 			break;
-		} else if (escaped) {
+		}
+		curr_item_is_empty = false;
+		if (escaped) {
 			char byte;
 			switch (loader->rune) {
 			case 's':
@@ -469,6 +494,9 @@ static bool read_entry(struct sfdo_desktop_file_loader *loader) {
 			case '\\':
 				byte = '\\';
 				break;
+			case ';':
+				byte = ';';
+				break;
 			default:
 				set_error(loader, SFDO_DESKTOP_FILE_ERROR_SYNTAX);
 				return false;
@@ -480,6 +508,12 @@ static bool read_entry(struct sfdo_desktop_file_loader *loader) {
 		} else if (loader->rune == '\\') {
 			escaped = true;
 		} else if (value != NULL) {
+			if (loader->rune == ';') {
+				if (!add_item(loader, loader->buf_len)) {
+					return false;
+				}
+				curr_item_is_empty = true;
+			}
 			if (!add_rune(loader)) {
 				return false;
 			}
@@ -500,9 +534,50 @@ static bool read_entry(struct sfdo_desktop_file_loader *loader) {
 			set_error_at(loader, SFDO_DESKTOP_FILE_ERROR_OOM, line, column);
 			return false;
 		}
-		memcpy(value->data, loader->buf, loader->buf_len);
-		value->data[loader->buf_len] = '\0';
+
+		size_t items_mem_size = loader->buf_len;
+		if (!curr_item_is_empty) {
+			// Not terminated by a separator
+			if (!add_item(loader, items_mem_size)) {
+				free(value->data);
+				return false;
+			}
+			// Add space for NUL
+			++items_mem_size;
+		}
+
+		if (loader->item_buf_len > 0) {
+			value->items_mem = malloc(items_mem_size);
+			value->items = calloc(loader->item_buf_len, sizeof(*value->items));
+			if (value->items_mem == NULL || value->items == NULL) {
+				free(value->data);
+				set_error_at(loader, SFDO_DESKTOP_FILE_ERROR_OOM, line, column);
+				return false;
+			}
+
+			size_t item_start = 0;
+			value->n_items = loader->item_buf_len;
+			for (size_t i = 0; i < value->n_items; i++) {
+				size_t item_end = loader->item_buf[i];
+
+				char *data = &value->items_mem[item_start];
+				size_t len = item_end - item_start;
+				memcpy(data, &loader->buf[item_start], len);
+				data[len] = '\0';
+
+				value->items[i] = (struct sfdo_string){
+					.data = data,
+					.len = len,
+				};
+
+				item_start = item_end + 1;
+			}
+			value->n_items = loader->item_buf_len;
+		}
+
 		value->len = loader->buf_len;
+		memcpy(value->data, loader->buf, value->len);
+		value->data[value->len] = '\0';
 	}
 
 	return true;
@@ -681,6 +756,7 @@ SFDO_API struct sfdo_desktop_file_document *sfdo_desktop_file_document_load(
 	sfdo_hashmap_finish(&loader.group_set);
 	free(loader.locale_data);
 	free(loader.buf);
+	free(loader.item_buf);
 
 	if (ok) {
 		return loader.doc;
@@ -823,4 +899,19 @@ SFDO_API void sfdo_desktop_file_entry_get_location(
 	if (column != NULL) {
 		*column = entry->column;
 	}
+}
+
+SFDO_API const struct sfdo_string *sfdo_desktop_file_entry_get_value_list(
+		struct sfdo_desktop_file_entry *entry, size_t *n_items) {
+	*n_items = entry->value.n_items;
+	return entry->value.items;
+}
+
+SFDO_API const struct sfdo_string *sfdo_desktop_file_entry_get_localized_value_list(
+		struct sfdo_desktop_file_entry *entry, size_t *n_items) {
+	if (entry->localized_value.data == NULL) {
+		return sfdo_desktop_file_entry_get_value_list(entry, n_items);
+	}
+	*n_items = entry->localized_value.n_items;
+	return entry->localized_value.items;
 }

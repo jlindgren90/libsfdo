@@ -111,6 +111,14 @@ const char *sfdo_desktop_file_entry_get_value(struct sfdo_desktop_file_entry *en
 const char *sfdo_desktop_file_entry_get_localized_value(
 		struct sfdo_desktop_file_entry *entry, size_t *len);
 
+// Get the entry value list.
+const struct sfdo_string *sfdo_desktop_file_entry_get_value_list(
+		struct sfdo_desktop_file_entry *entry, size_t *n_items);
+
+// Get the localized entry value list.
+const struct sfdo_string *sfdo_desktop_file_entry_get_localized_value_list(
+		struct sfdo_desktop_file_entry *entry, size_t *n_items);
+
 // Get the entry location in the file.
 //
 // The location is saved to line and column. line and column may be NULL.
