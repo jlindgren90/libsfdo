@@ -114,7 +114,7 @@ static enum sfdo_desktop_entry_load_result load_optional_boolean(struct sfdo_des
 		if (value_len == 4 && memcmp(value, "true", 4) == 0) {
 			*dst = true;
 		} else if (value_len == 5 && memcmp(value, "false", 5) == 0) {
-			*dst = true;
+			*dst = false;
 		} else {
 			int line, column;
 			sfdo_desktop_file_entry_get_location(entry, &line, &column);
