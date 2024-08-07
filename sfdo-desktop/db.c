@@ -190,9 +190,9 @@ static enum sfdo_desktop_entry_load_result store_list(struct sfdo_desktop_loader
 	struct sfdo_desktop_db *db = loader->db;
 	struct sfdo_logger *logger = &db->ctx->logger;
 
-	*n_dst = n_src;
 	if (n_src == 0) {
 		*dst = NULL;
+		*n_dst = 0;
 		return SFDO_DESKTOP_ENTRY_LOAD_OK;
 	}
 
@@ -215,6 +215,7 @@ static enum sfdo_desktop_entry_load_result store_list(struct sfdo_desktop_loader
 	}
 
 	*dst = items;
+	*n_dst = n_src;
 	return SFDO_DESKTOP_ENTRY_LOAD_OK;
 }
 
@@ -258,70 +259,69 @@ static enum sfdo_desktop_entry_load_result load_actions(struct sfdo_desktop_load
 	struct sfdo_desktop_db *db = loader->db;
 	struct sfdo_logger *logger = &db->ctx->logger;
 
-	const char *value = sfdo_desktop_file_entry_get_value(entry, NULL);
+	size_t n_items;
+	const struct sfdo_string *items = sfdo_desktop_file_entry_get_value_list(entry, &n_items);
 
-	size_t n_actions = 0;
-	size_t id_start, id_len;
-	size_t iter = 0;
-	while ((sfdo_striter(value, ';', &iter, &id_start, &id_len))) {
-		if (id_len > 0) {
-			++n_actions;
-		}
+	if (n_items == 0) {
+		*dst = NULL;
+		*n_dst = 0;
+		*dst_mem = NULL;
+		return SFDO_DESKTOP_ENTRY_LOAD_OK;
 	}
-	*n_dst = n_actions;
 
-	struct sfdo_desktop_entry_action *actions_mem = NULL;
-	struct sfdo_desktop_entry_action **actions = NULL;
-	if (n_actions > 0) {
-		actions_mem = calloc(n_actions, sizeof(*actions_mem));
-		if (actions_mem == NULL) {
-			logger_write_oom(logger);
-			return SFDO_DESKTOP_ENTRY_LOAD_OOM;
-		}
-		actions = calloc(n_actions, sizeof(struct sfdo_desktop_entry_action *));
-		if (actions == NULL) {
-			free(actions_mem);
-			logger_write_oom(logger);
-			return SFDO_DESKTOP_ENTRY_LOAD_OOM;
-		}
+	struct sfdo_desktop_entry_action **actions =
+			calloc(n_items, sizeof(struct sfdo_desktop_entry_action *));
+	struct sfdo_desktop_entry_action *actions_mem = calloc(n_items, sizeof(*actions_mem));
+	if (actions == NULL || actions_mem == NULL) {
+		free(actions);
+		free(actions_mem);
+		logger_write_oom(logger);
+		return SFDO_DESKTOP_ENTRY_LOAD_OOM;
 	}
-	*dst_mem = actions_mem;
-	*dst = actions;
+
+	enum sfdo_desktop_entry_load_result r;
 
 	size_t action_i = 0;
-	iter = 0;
-	while ((sfdo_striter(value, ';', &iter, &id_start, &id_len))) {
-		if (id_len > 0) {
-			const char *id = value + id_start;
-			struct sfdo_hashmap_entry *map_entry =
-					sfdo_hashmap_get(set, value + id_start, id_len, true);
-			if (map_entry == NULL) {
-				logger_write_oom(logger);
-				return SFDO_DESKTOP_ENTRY_LOAD_OOM;
-			} else if (map_entry->key != NULL) {
-				logger_write(logger, SFDO_LOG_LEVEL_ERROR, "%d:%d: duplicate action %s", line,
-						column, map_entry->key);
-				return SFDO_DESKTOP_ENTRY_LOAD_ERROR;
-			}
-
-			const char *owned = sfdo_strpool_add(&db->strings, id, id_len);
-			if (owned == NULL) {
-				logger_write_oom(logger);
-				return SFDO_DESKTOP_ENTRY_LOAD_OOM;
-			}
-			map_entry->key = owned;
-
-			struct sfdo_desktop_entry_action *action = &actions_mem[action_i];
-			action->id.data = owned;
-			action->id.len = id_len;
-
-			actions[action_i] = action;
-			++action_i;
+	for (size_t i = 0; i < n_items; i++) {
+		const struct sfdo_string *item = &items[i];
+		struct sfdo_hashmap_entry *map_entry = sfdo_hashmap_get(set, item->data, item->len, true);
+		if (map_entry == NULL) {
+			logger_write_oom(logger);
+			r = SFDO_DESKTOP_ENTRY_LOAD_OOM;
+			goto err;
+		} else if (map_entry->key != NULL) {
+			logger_write(logger, SFDO_LOG_LEVEL_ERROR, "%d:%d: duplicate action %s", line, column,
+					map_entry->key);
+			r = SFDO_DESKTOP_ENTRY_LOAD_ERROR;
+			goto err;
 		}
+
+		const char *owned = sfdo_strpool_add(&db->strings, item->data, item->len);
+		if (owned == NULL) {
+			logger_write_oom(logger);
+			r = SFDO_DESKTOP_ENTRY_LOAD_OOM;
+			goto err;
+		}
+		map_entry->key = owned;
+
+		struct sfdo_desktop_entry_action *action = &actions_mem[action_i];
+		action->id.data = owned;
+		action->id.len = item->len;
+
+		actions[action_i] = action;
+		++action_i;
 	}
-	assert(action_i == n_actions);
+
+	*dst_mem = actions_mem;
+	*dst = actions;
+	*n_dst = n_items;
 
 	return SFDO_DESKTOP_ENTRY_LOAD_OK;
+
+err:
+	free(actions);
+	free(actions_mem);
+	return r;
 }
 
 static bool exec_char_is_ws(char c) {
