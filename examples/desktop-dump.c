@@ -82,8 +82,9 @@ int main(int argc, char **argv) {
 		if (!sfdo_desktop_entry_show_in(entry, env, env_len)) {
 			continue;
 		}
+		const char *id = sfdo_desktop_entry_get_id(entry, NULL);
 		const char *name = sfdo_desktop_entry_get_name(entry, NULL);
-		printf("%s\n", name);
+		printf("%s: %s\n", id, name);
 	}
 
 	sfdo_desktop_db_destroy(db);
