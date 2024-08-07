@@ -641,9 +641,6 @@ static enum sfdo_desktop_entry_load_result exec_add_unquoted(struct sfdo_desktop
 			if (!exec_char_is_deprecated_field_code(standalone)) {
 				goto err_invalid_field_code;
 			}
-			if ((r = exec_add_literal(loader, "")) != SFDO_DESKTOP_ENTRY_LOAD_OK) {
-				return r;
-			}
 			break;
 		}
 		return SFDO_DESKTOP_ENTRY_LOAD_OK;
@@ -692,7 +689,7 @@ static enum sfdo_desktop_entry_load_result exec_add_unquoted(struct sfdo_desktop
 				}
 				break;
 			default:
-				if (!exec_char_is_deprecated_field_code(standalone)) {
+				if (!exec_char_is_deprecated_field_code(c)) {
 					goto err_invalid_field_code;
 				}
 				break;
