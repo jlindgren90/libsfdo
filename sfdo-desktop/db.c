@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <dirent.h>
+#include <errno.h>
 #include <sfdo-desktop-file.h>
 #include <sfdo-desktop.h>
 #include <stdio.h>
@@ -960,6 +961,7 @@ static enum sfdo_desktop_entry_load_result entry_load(struct sfdo_desktop_loader
 		return r;
 	}
 	if (hidden) {
+		logger_write(logger, SFDO_LOG_LEVEL_DEBUG, "Skipping hidden entry %s", map_entry->base.key);
 		return SFDO_DESKTOP_ENTRY_LOAD_OK;
 	}
 
@@ -1132,7 +1134,10 @@ static enum sfdo_desktop_entry_load_result entry_load(struct sfdo_desktop_loader
 			size_t action_id_len = group_name_len - sizeof(DESKTOP_ACTION_PREFIX) + 1;
 			const char *action_id = group_name + sizeof(DESKTOP_ACTION_PREFIX) - 1;
 			if (sfdo_hashmap_get(&action_set, action_id, action_id_len, false) == NULL) {
-				// Unknown action
+				// "It is not valid to have an action group for an action identifier not mentioned
+				// in the Actions key. Such an action group must be ignored by implementors."
+				logger_write(
+						logger, SFDO_LOG_LEVEL_ERROR, "Ignoring unknown action %s", group_name);
 				continue;
 			}
 
@@ -1202,6 +1207,8 @@ static bool scan_dir(struct sfdo_desktop_loader *loader, size_t basedir_len) {
 	if (dirp == NULL) {
 		return true;
 	}
+
+	logger_write(logger, SFDO_LOG_LEVEL_DEBUG, "Scanning dir %s", pb->data);
 
 	size_t base_pb_len = pb->len;
 	size_t base_id_len = ib->len;
@@ -1292,6 +1299,8 @@ static bool scan_dir(struct sfdo_desktop_loader *loader, size_t basedir_len) {
 
 		FILE *fp = fopen(pb->data, "r");
 		if (fp == NULL) {
+			logger_write(logger, SFDO_LOG_LEVEL_ERROR, "Failed to open %s: %s", pb->data,
+					strerror(errno));
 			continue;
 		}
 
@@ -1311,6 +1320,7 @@ static bool scan_dir(struct sfdo_desktop_loader *loader, size_t basedir_len) {
 			switch (result) {
 			case SFDO_DESKTOP_ENTRY_LOAD_OK:
 				if (map_entry->entry != NULL) {
+					logger_write(logger, SFDO_LOG_LEVEL_DEBUG, "Loaded entry %s", ib->data);
 					++loader->n_entries;
 				}
 				continue;
