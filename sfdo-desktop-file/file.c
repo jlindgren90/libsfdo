@@ -14,13 +14,19 @@
 
 #define N_LOCALES_MAX 4
 
+struct sfdo_desktop_file_value {
+	char *data; // NULL if unset
+	size_t len;
+};
+
 struct sfdo_desktop_file_entry {
 	char *key;
 	size_t key_len;
-	char *value;
-	size_t value_len;
-	char *localized_value; // May be NULL
-	size_t localized_value_len;
+
+	struct sfdo_desktop_file_value value;
+	// May be unset
+	struct sfdo_desktop_file_value localized_value;
+
 	int line, column;
 	uint8_t locale_match_level; // Locale index + 1
 };
@@ -304,6 +310,10 @@ static bool read_group(struct sfdo_desktop_file_loader *loader) {
 	return true;
 }
 
+static void finish_value(struct sfdo_desktop_file_value *value) {
+	free(value->data);
+}
+
 static bool read_entry(struct sfdo_desktop_file_loader *loader) {
 	struct sfdo_desktop_file_group *group = loader->curr_group;
 	if (group == NULL) {
@@ -366,8 +376,7 @@ static bool read_entry(struct sfdo_desktop_file_loader *loader) {
 		entry = map_entry->entry;
 	}
 
-	char **value_dst = NULL;
-	size_t *value_len_dst = NULL;
+	struct sfdo_desktop_file_value *value = NULL;
 
 	if (loader->rune == '[') {
 		reset_buf(loader);
@@ -399,18 +408,16 @@ static bool read_entry(struct sfdo_desktop_file_loader *loader) {
 		for (uint8_t i = entry->locale_match_level; i < loader->n_locales; i++) {
 			if (strcmp(loader->locales[i], loader->buf) == 0) {
 				entry->locale_match_level = i + 1;
-				value_dst = &entry->localized_value;
-				value_len_dst = &entry->localized_value_len;
+				value = &entry->localized_value;
 				break;
 			}
 		}
 	} else {
-		if (entry->value != NULL) {
+		if (entry->value.data != NULL) {
 			set_error_at(loader, SFDO_DESKTOP_FILE_ERROR_DUPLICATE_KEY, line, column);
 			return false;
 		}
-		value_dst = &entry->value;
-		value_len_dst = &entry->value_len;
+		value = &entry->value;
 	}
 
 	if (!skip_ws(loader)) {
@@ -425,10 +432,9 @@ static bool read_entry(struct sfdo_desktop_file_loader *loader) {
 		return false;
 	}
 
-	if (value_dst != NULL) {
-		free(*value_dst);
-		*value_dst = NULL;
-		*value_len_dst = 0;
+	if (value != NULL) {
+		finish_value(value);
+		*value = (struct sfdo_desktop_file_value){0};
 		reset_buf(loader);
 
 		entry->line = line;
@@ -467,14 +473,14 @@ static bool read_entry(struct sfdo_desktop_file_loader *loader) {
 				set_error(loader, SFDO_DESKTOP_FILE_ERROR_SYNTAX);
 				return false;
 			}
-			if (value_dst != NULL && !add_bytes(loader, &byte, 1)) {
+			if (value != NULL && !add_bytes(loader, &byte, 1)) {
 				return false;
 			}
 			escaped = false;
 		} else if (loader->rune == '\\') {
 			escaped = true;
-		} else {
-			if (value_dst != NULL && !add_rune(loader)) {
+		} else if (value != NULL) {
+			if (!add_rune(loader)) {
 				return false;
 			}
 		}
@@ -488,15 +494,15 @@ static bool read_entry(struct sfdo_desktop_file_loader *loader) {
 	// Skip end
 	advance(loader);
 
-	if (value_dst != NULL) {
-		*value_dst = malloc(loader->buf_len + 1);
-		if (*value_dst == NULL) {
+	if (value != NULL) {
+		value->data = malloc(loader->buf_len + 1);
+		if (value->data == NULL) {
 			set_error_at(loader, SFDO_DESKTOP_FILE_ERROR_OOM, line, column);
 			return false;
 		}
-		memcpy(*value_dst, loader->buf, loader->buf_len);
-		(*value_dst)[loader->buf_len] = '\0';
-		*value_len_dst = loader->buf_len;
+		memcpy(value->data, loader->buf, loader->buf_len);
+		value->data[loader->buf_len] = '\0';
+		value->len = loader->buf_len;
 	}
 
 	return true;
@@ -515,7 +521,7 @@ static bool validate_group(struct sfdo_desktop_file_loader *loader) {
 		if (map_entry->base.key != NULL) {
 			struct sfdo_desktop_file_entry *entry = map_entry->entry;
 			assert(entry != NULL);
-			if (entry->value == NULL) {
+			if (entry->value.data == NULL) {
 				set_error_at(loader, SFDO_DESKTOP_FILE_ERROR_NO_DEFAULT_VALUE, entry->line,
 						entry->column);
 				return false;
@@ -701,8 +707,8 @@ SFDO_API void sfdo_desktop_file_document_destroy(struct sfdo_desktop_file_docume
 				struct sfdo_desktop_file_entry *entry = map_entry->entry;
 				assert(entry != NULL);
 				free(entry->key);
-				free(entry->value);
-				free(entry->localized_value);
+				finish_value(&entry->value);
+				finish_value(&entry->localized_value);
 				free(entry);
 			}
 		}
@@ -793,20 +799,20 @@ SFDO_API const char *sfdo_desktop_file_entry_get_key(
 SFDO_API const char *sfdo_desktop_file_entry_get_value(
 		struct sfdo_desktop_file_entry *entry, size_t *len) {
 	if (len != NULL) {
-		*len = entry->value_len;
+		*len = entry->value.len;
 	}
-	return entry->value;
+	return entry->value.data;
 }
 
 SFDO_API const char *sfdo_desktop_file_entry_get_localized_value(
 		struct sfdo_desktop_file_entry *entry, size_t *len) {
-	if (entry->localized_value == NULL) {
+	if (entry->localized_value.data == NULL) {
 		return sfdo_desktop_file_entry_get_value(entry, len);
 	}
 	if (len != NULL) {
-		*len = entry->localized_value_len;
+		*len = entry->localized_value.len;
 	}
-	return entry->localized_value;
+	return entry->localized_value.data;
 }
 
 SFDO_API void sfdo_desktop_file_entry_get_location(
