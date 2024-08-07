@@ -185,46 +185,35 @@ static enum sfdo_desktop_entry_load_result load_string(struct sfdo_desktop_loade
 }
 
 static enum sfdo_desktop_entry_load_result store_list(struct sfdo_desktop_loader *loader,
-		const char *list, struct sfdo_string **dst, size_t *n_dst) {
+		const struct sfdo_string *src, size_t n_src, struct sfdo_string **dst, size_t *n_dst) {
 	struct sfdo_desktop_db *db = loader->db;
 	struct sfdo_logger *logger = &db->ctx->logger;
 
-	size_t n_items = 0;
-	size_t item_start, item_len;
-	size_t iter = 0;
-	while ((sfdo_striter(list, ';', &iter, &item_start, &item_len))) {
-		if (item_len > 0) {
-			++n_items;
-		}
+	*n_dst = n_src;
+	if (n_src == 0) {
+		*dst = NULL;
+		return SFDO_DESKTOP_ENTRY_LOAD_OK;
 	}
-	*n_dst = n_items;
 
-	struct sfdo_string *items = NULL;
-	if (n_items > 0) {
-		items = calloc(n_items, sizeof(*items));
-		if (items == NULL) {
+	struct sfdo_string *items = calloc(n_src, sizeof(*items));
+	if (items == NULL) {
+		logger_write_oom(logger);
+		return SFDO_DESKTOP_ENTRY_LOAD_OOM;
+	}
+
+	for (size_t i = 0; i < n_src; i++) {
+		const struct sfdo_string *src_item = &src[i];
+		struct sfdo_string *item = &items[i];
+		item->data = sfdo_strpool_add(&db->strings, src_item->data, src_item->len);
+		if (item->data == NULL) {
 			logger_write_oom(logger);
+			free(items);
 			return SFDO_DESKTOP_ENTRY_LOAD_OOM;
 		}
+		item->len = src_item->len;
 	}
+
 	*dst = items;
-
-	size_t item_i = 0;
-	iter = 0;
-	while ((sfdo_striter(list, ';', &iter, &item_start, &item_len))) {
-		if (item_len > 0) {
-			struct sfdo_string *item = &items[item_i++];
-			const char *owned = sfdo_strpool_add(&db->strings, list + item_start, item_len);
-			if (item == NULL) {
-				logger_write_oom(logger);
-				return SFDO_DESKTOP_ENTRY_LOAD_OOM;
-			}
-			item->data = owned;
-			item->len = item_len;
-		}
-	}
-	assert(item_i == n_items);
-
 	return SFDO_DESKTOP_ENTRY_LOAD_OK;
 }
 
@@ -233,17 +222,17 @@ static enum sfdo_desktop_entry_load_result load_list(struct sfdo_desktop_loader 
 		enum sfdo_desktop_entry_value_type type, struct sfdo_string **dst, size_t *n_dst) {
 	struct sfdo_desktop_file_entry *entry;
 	if ((entry = sfdo_desktop_file_group_get_entry(group, key, key_len)) != NULL) {
-		const char *value = NULL;
+		const struct sfdo_string *items = NULL;
+		size_t n_items = 0;
 		switch (type) {
 		case SFDO_DESKTOP_ENTRY_VALUE_STRING:
-			value = sfdo_desktop_file_entry_get_value(entry, NULL);
+			items = sfdo_desktop_file_entry_get_value_list(entry, &n_items);
 			break;
 		case SFDO_DESKTOP_ENTRY_VALUE_LOCALESTRING:
-			value = sfdo_desktop_file_entry_get_localized_value(entry, NULL);
+			items = sfdo_desktop_file_entry_get_localized_value_list(entry, &n_items);
 			break;
 		}
-		assert(value != NULL);
-		return store_list(loader, value, dst, n_dst);
+		return store_list(loader, items, n_items, dst, n_dst);
 	} else {
 		*dst = NULL;
 		*n_dst = 0;
@@ -824,32 +813,31 @@ static enum sfdo_desktop_entry_load_result load_show_in(struct sfdo_desktop_load
 	struct sfdo_desktop_file_entry *no_entry =
 			sfdo_desktop_file_group_get_entry(group, "NotShowIn", 9);
 
-	const char *value;
+	const struct sfdo_string *items;
+	size_t n_items;
 
 	enum sfdo_desktop_entry_load_result r = SFDO_DESKTOP_ENTRY_LOAD_OK;
 
 	if (yes_entry != NULL) {
 		d_entry->default_show = false;
-		value = sfdo_desktop_file_entry_get_value(yes_entry, NULL);
-		if ((r = store_list(loader, value, &d_entry->show_exceptions,
+		items = sfdo_desktop_file_entry_get_value_list(yes_entry, &n_items);
+		if ((r = store_list(loader, items, n_items, &d_entry->show_exceptions,
 					 &d_entry->n_show_exceptions)) != SFDO_DESKTOP_ENTRY_LOAD_OK) {
 			return r;
 		}
 		if (no_entry != NULL) {
-			value = sfdo_desktop_file_entry_get_value(no_entry, NULL);
-			size_t item_start, item_len;
-			size_t iter = 0;
+			items = sfdo_desktop_file_entry_get_value_list(no_entry, &n_items);
 			// XXX: this is O(n²) but also never happens in practice so whatever
-			while ((sfdo_striter(value, ';', &iter, &item_start, &item_len))) {
-				for (size_t i = 0; i < d_entry->n_show_exceptions; i++) {
-					struct sfdo_string *ex = &d_entry->show_exceptions[i];
-					if (ex->len == item_len &&
-							memcmp(ex->data, value + item_start, item_len) == 0) {
+			for (size_t no_i = 0; no_i < n_items; no_i++) {
+				const struct sfdo_string *no = &items[no_i];
+				for (size_t yes_i = 0; yes_i < d_entry->n_show_exceptions; yes_i++) {
+					struct sfdo_string *yes = &d_entry->show_exceptions[yes_i];
+					if (yes->len == no->len && memcmp(yes->data, no->data, yes->len) == 0) {
 						int group_line, group_column;
 						sfdo_desktop_file_group_get_location(group, &group_line, &group_column);
 						logger_write(logger, SFDO_LOG_LEVEL_ERROR,
 								"%d:%d: %s is both in OnlyShowIn and NotShowIn", group_line,
-								group_column, ex->data);
+								group_column, yes->data);
 						return SFDO_DESKTOP_ENTRY_LOAD_ERROR;
 					}
 				}
@@ -858,8 +846,8 @@ static enum sfdo_desktop_entry_load_result load_show_in(struct sfdo_desktop_load
 	} else {
 		d_entry->default_show = true;
 		if (no_entry != NULL) {
-			value = sfdo_desktop_file_entry_get_value(no_entry, NULL);
-			if ((r = store_list(loader, value, &d_entry->show_exceptions,
+			items = sfdo_desktop_file_entry_get_value_list(no_entry, &n_items);
+			if ((r = store_list(loader, items, n_items, &d_entry->show_exceptions,
 						 &d_entry->n_show_exceptions)) != SFDO_DESKTOP_ENTRY_LOAD_OK) {
 				return r;
 			}
@@ -923,6 +911,9 @@ static enum sfdo_desktop_entry_load_result entry_load(struct sfdo_desktop_loader
 
 	const char *value;
 	size_t value_len;
+
+	const struct sfdo_string *items;
+	size_t n_items;
 
 	int group_line, group_column;
 	struct sfdo_desktop_file_group *group = sfdo_desktop_file_document_get_groups(doc);
@@ -1022,9 +1013,9 @@ static enum sfdo_desktop_entry_load_result entry_load(struct sfdo_desktop_loader
 	}
 
 	if ((entry = sfdo_desktop_file_group_get_entry(group, "Implements", 10)) != NULL) {
-		value = sfdo_desktop_file_entry_get_value(entry, NULL);
-		if ((r = store_list(loader, value, &d_entry->implements, &d_entry->n_implements)) !=
-				SFDO_DESKTOP_ENTRY_LOAD_OK) {
+		items = sfdo_desktop_file_entry_get_value_list(entry, &n_items);
+		if ((r = store_list(loader, items, n_items, &d_entry->implements,
+					 &d_entry->n_implements)) != SFDO_DESKTOP_ENTRY_LOAD_OK) {
 			goto end;
 		}
 		for (size_t i = 0; i < d_entry->n_implements; i++) {
