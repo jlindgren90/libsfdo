@@ -1,0 +1,4 @@
+[Desktop Entry]
+Name=exec-embed
+Type=Application
+Exec=/bin/sh name=%c path=%k target=%f deprecated=%v

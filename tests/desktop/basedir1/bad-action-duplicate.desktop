@@ -1,0 +1,13 @@
+[Desktop Entry]
+Name=bad-action-duplicate
+Type=Application
+Exec=/bin/sh
+Actions=foo;bar;foo
+
+[Desktop Action foo]
+Name=foo
+Exec=/bin/sh
+
+[Desktop Action bar]
+Name=bar
+Exec=/bin/sh

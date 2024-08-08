@@ -1,0 +1,5 @@
+[Desktop Entry]
+Name=exec-complex
+Type=Application
+Icon=icon
+Exec="quoted arg\\$" %i %c %k %F %% %d %D %n %N %v %m

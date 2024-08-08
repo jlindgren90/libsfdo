@@ -1,0 +1,5 @@
+[Desktop Entry]
+Name=bad-exec-no-closing-quote
+Type=Application
+Icon=icon
+Exec=/bin/sh "foo bar

@@ -1,0 +1,5 @@
+# Overridden by a hidden entry
+[Desktop Entry]
+Name=not hidden
+Type=Application
+Exec=/bin/false

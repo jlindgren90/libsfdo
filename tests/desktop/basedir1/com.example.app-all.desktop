@@ -1,0 +1,19 @@
+[Desktop Entry]
+Type=Application
+Name=app-all
+GenericName=generic
+NoDisplay=true
+Comment=comment
+Icon=icon
+Hidden=false
+DBusActivatable=true
+TryExec=/bin/false
+Path=/etc
+Terminal=true
+MimeType=foo;bar;
+Categories=Settings;System;Utility
+Keywords=
+StartupNotify=true
+StartupWMClass=class
+PrefersNonDefaultGPU=true
+SingleMainWindow=true

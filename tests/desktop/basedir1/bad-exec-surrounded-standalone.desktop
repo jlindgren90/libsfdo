@@ -1,0 +1,5 @@
+[Desktop Entry]
+Name=bad-exec-surrounded-standalone
+Type=Application
+Icon=icon
+Exec=/bin/sh --targets=%U

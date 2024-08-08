@@ -1,0 +1,17 @@
+[Desktop Entry]
+Name=actions
+Type=Application
+Exec=/bin/sh
+Actions=Do Thing;Sleep
+
+[Desktop Action Do Thing]
+Name=Do Thing Action
+Exec=/bin/do-thing
+
+[Desktop Action Unknown]
+Name=Unknown Action
+Exec=/bin/unknown
+
+[Desktop Action Sleep]
+Name=Sleep Action
+Exec=/bin/sleep

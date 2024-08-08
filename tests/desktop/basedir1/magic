@@ -1,0 +1,4 @@
+[Desktop Entry]
+Name=magic
+Type=Application
+Exec=/bin/sh

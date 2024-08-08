@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=bad-show-in-overlap
+Type=Application
+Exec=/bin/sh
+OnlyShowIn=foo;bar
+NotShowIn=bar;buz

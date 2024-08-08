@@ -1,0 +1,5 @@
+[Desktop Entry]
+Name=not-show-in
+Type=Application
+Exec=/bin/sh
+NotShowIn=disallowed;bad

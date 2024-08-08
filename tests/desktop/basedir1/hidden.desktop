@@ -1,0 +1,5 @@
+[Desktop Entry]
+Name=hidden
+Type=Application
+Exec=/bin/false
+Hidden=true

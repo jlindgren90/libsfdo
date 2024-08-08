@@ -1,0 +1,5 @@
+[Desktop Entry]
+Name=dbus
+Type=Application
+DBusActivatable=true
+Implements=com.example.Sleepy;com.example.Tired

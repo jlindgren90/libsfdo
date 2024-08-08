@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=both-show-in
+Type=Application
+Exec=/bin/sh
+OnlyShowIn=allowed;good
+NotShowIn=disallowed;bad

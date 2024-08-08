@@ -11,6 +11,12 @@ tests = [
       sfdo_desktop_file,
     ],
   },
+  {
+    'name': 'desktop',
+    'deps': [
+      sfdo_desktop,
+    ],
+  },
 ]
 
 foreach template : tests
@@ -22,7 +28,8 @@ foreach template : tests
       name + '.c',
       include_directories: include_dir,
       dependencies: template['deps'],
-    )
+    ),
+    workdir: meson.current_source_dir(),
   )
 endforeach
 

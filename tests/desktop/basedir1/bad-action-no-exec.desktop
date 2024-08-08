@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=bad-action-no-exec
+Type=Application
+Exec=/bin/sh
+Actions=foo
+
+[Desktop Action foo]
+Name=foo

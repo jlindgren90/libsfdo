@@ -1,0 +1,5 @@
+[Desktop Entry]
+Name=bad-dbus-single
+Type=Application
+Exec=/bin/sh
+Implements=single

@@ -1,0 +1,5 @@
+[Desktop Entry]
+Name=bad-dbus-cont
+Type=Application
+Exec=/bin/sh
+Implements=co?m.example.Bad

@@ -1,0 +1,4 @@
+[Desktop Entry]
+Name=simple
+Type=Application
+Exec=/bin/sh

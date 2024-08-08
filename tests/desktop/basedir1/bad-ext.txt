@@ -1,0 +1,4 @@
+[Desktop Entry]
+Name=bad-ext
+Type=Application
+Exec=/bin/sh

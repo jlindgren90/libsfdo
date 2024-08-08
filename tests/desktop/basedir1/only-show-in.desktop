@@ -1,0 +1,5 @@
+[Desktop Entry]
+Name=only-show-in
+Type=Application
+Exec=/bin/sh
+OnlyShowIn=allowed;good

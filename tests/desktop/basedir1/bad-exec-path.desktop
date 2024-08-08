@@ -1,0 +1,5 @@
+[Desktop Entry]
+Name=bad-exec-path
+Type=Application
+Icon=icon
+Exec="WAYLAND_DISPLAY=wayland-1 /bin/sh"

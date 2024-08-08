@@ -1,0 +1,6 @@
+# Overridden by an invalid entry
+[Desktop Entry]
+Name=bad-boolean
+Type=Application
+Exec=/bin/false
+NoDisplay=bad

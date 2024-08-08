@@ -1,0 +1,5 @@
+[Desktop Entry]
+Name=bad-exec-truncated-field
+Type=Application
+Icon=icon
+Exec=/bin/sh %

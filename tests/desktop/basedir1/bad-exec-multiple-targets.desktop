@@ -1,0 +1,5 @@
+[Desktop Entry]
+Name=bad-exec-multiple-targets
+Type=Application
+Icon=icon
+Exec=/bin/sh %F %u

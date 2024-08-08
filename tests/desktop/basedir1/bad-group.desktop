@@ -1,0 +1,4 @@
+[meow]
+Name=bad-group
+Type=Application
+Exec=/bin/sh

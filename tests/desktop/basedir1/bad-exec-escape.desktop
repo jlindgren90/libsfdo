@@ -1,0 +1,5 @@
+[Desktop Entry]
+Name=bad-exec-unescaped
+Type=Application
+Icon=icon
+Exec=/bin/sh "\\m"

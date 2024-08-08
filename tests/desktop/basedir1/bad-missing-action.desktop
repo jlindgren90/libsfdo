@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=bad-missing-action
+Type=Application
+Exec=/bin/sh
+Actions=foo;bar
+
+[Desktop Action bar]
+Name=bar
+Exec=/bin/sh
