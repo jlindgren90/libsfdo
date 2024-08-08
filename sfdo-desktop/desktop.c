@@ -15,6 +15,8 @@ SFDO_API struct sfdo_desktop_ctx *sfdo_desktop_ctx_create(struct sfdo_basedir_ct
 		return NULL;
 	}
 
+	logger_setup(&ctx->logger);
+
 	if (basedir_ctx != NULL) {
 		size_t n_dirs;
 		const struct sfdo_string *data_dirs = sfdo_basedir_get_data_dirs(basedir_ctx, &n_dirs);
