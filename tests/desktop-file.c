@@ -52,7 +52,7 @@ static struct sfdo_desktop_file_document *load_success(
 }
 
 static void check_value(const char *name, const char *str, size_t len, const char *locale,
-		int options, bool localized, const char *exp, size_t exp_len) {
+		int options, bool localized, const char *exp) {
 	struct sfdo_desktop_file_document *doc = load_success(name, str, len, locale, options);
 
 	struct sfdo_desktop_file_group *group = sfdo_desktop_file_document_get_groups(doc);
@@ -67,9 +67,7 @@ static void check_value(const char *name, const char *str, size_t len, const cha
 		exit(1);
 	}
 
-	if (exp_len == SFDO_NT) {
-		exp_len = strlen(exp);
-	}
+	size_t exp_len = strlen(exp);
 
 	size_t got_len;
 	const char *got = localized ? sfdo_desktop_file_entry_get_localized_value(entry, &got_len)
@@ -108,10 +106,7 @@ static void check_value_list(const char *name, const char *str, size_t len, cons
 	struct sfdo_string *exp = calloc(exp_len, sizeof(*exp));
 	for (size_t i = 0; i < exp_len; i++) {
 		exp[i].data = va_arg(args, const char *);
-		exp[i].len = va_arg(args, size_t);
-		if (exp[i].len == SFDO_NT) {
-			exp[i].len = strlen(exp[i].data);
-		}
+		exp[i].len = strlen(exp[i].data);
 	}
 
 	va_end(args);
@@ -227,29 +222,29 @@ int main(void) {
 	check_value("simple value",
 			"[Group]\n"
 			"key=value\n",
-			SFDO_NT, NULL, SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, false, "value", SFDO_NT);
+			SFDO_NT, NULL, SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, false, "value");
 
 	// TODO: *trailing* spaces are not ignored, investigate what other impls do
 	check_value("simple value with spaces",
 			"  [Group]  \n"
 			"   key    =    value\n",
-			SFDO_NT, NULL, SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, false, "value", SFDO_NT);
+			SFDO_NT, NULL, SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, false, "value");
 
 	check_value("simple value a comment",
 			"[Group]\n"
 			"# comment\n"
 			"key=value\n",
-			SFDO_NT, NULL, SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, false, "value", SFDO_NT);
+			SFDO_NT, NULL, SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, false, "value");
 
 	check_value("simple value with localized getter",
 			"[Group]\n"
 			"key=value\n",
-			SFDO_NT, NULL, SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, true, "value", SFDO_NT);
+			SFDO_NT, NULL, SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, true, "value");
 
 	check_value("escaped",
 			"[Group]\n"
 			"key=\\s\\n\\t\\r\\\\\n",
-			SFDO_NT, NULL, SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, false, " \n\t\r\\", SFDO_NT);
+			SFDO_NT, NULL, SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, false, " \n\t\r\\");
 
 	// Localized values
 
@@ -266,71 +261,66 @@ int main(void) {
 			"key[lang2_COUNTRY]=lang2_COUNTRY\n";
 
 	check_value("localized, no locale", localized_str, sizeof(localized_str) - 1, NULL,
-			SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, true, "default", SFDO_NT);
+			SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, true, "default");
 
 	check_value("localized, empty locale", localized_str, sizeof(localized_str) - 1, "",
-			SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, true, "default", SFDO_NT);
+			SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, true, "default");
 
 	check_value("localized, lang", localized_str, sizeof(localized_str) - 1, "lang",
-			SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, true, "lang", SFDO_NT);
+			SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, true, "lang");
 
 	check_value("localized, lang+modifier", localized_str, sizeof(localized_str) - 1,
-			"lang@MODIFIER", SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, true, "lang@MODIFIER",
-			SFDO_NT);
+			"lang@MODIFIER", SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, true, "lang@MODIFIER");
 
 	check_value("localized, lang+country", localized_str, sizeof(localized_str) - 1, "lang_COUNTRY",
-			SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, true, "lang_COUNTRY", SFDO_NT);
+			SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, true, "lang_COUNTRY");
 
 	check_value("localized, lang+country+modifier", localized_str, sizeof(localized_str) - 1,
 			"lang_COUNTRY@MODIFIER", SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, true,
-			"lang_COUNTRY@MODIFIER", SFDO_NT);
+			"lang_COUNTRY@MODIFIER");
 
 	check_value("localized, lang+country+modifier with encoding", localized_str,
 			sizeof(localized_str) - 1, "lang_COUNTRY.ENCODING@MODIFIER",
-			SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, true, "lang_COUNTRY@MODIFIER", SFDO_NT);
+			SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, true, "lang_COUNTRY@MODIFIER");
 
 	check_value("localized, (bad)lang", localized_str, sizeof(localized_str) - 1, "BAD",
-			SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, true, "default", SFDO_NT);
+			SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, true, "default");
 
 	check_value("localized, lang+(bad)modifier", localized_str, sizeof(localized_str) - 1,
-			"lang@BAD", SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, true, "lang", SFDO_NT);
+			"lang@BAD", SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, true, "lang");
 
 	check_value("localized, lang+(bad)country", localized_str, sizeof(localized_str) - 1,
-			"lang_BAD", SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, true, "lang", SFDO_NT);
+			"lang_BAD", SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, true, "lang");
 
 	check_value("localized, lang+country+(bad)modifier", localized_str, sizeof(localized_str) - 1,
-			"lang_COUNTRY@BAD", SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, true, "lang_COUNTRY",
-			SFDO_NT);
+			"lang_COUNTRY@BAD", SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, true, "lang_COUNTRY");
 
 	check_value("localized, lang+(bad)country+modifier", localized_str, sizeof(localized_str) - 1,
-			"lang_BAD@MODIFIER", SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, true, "lang@MODIFIER",
-			SFDO_NT);
+			"lang_BAD@MODIFIER", SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, true, "lang@MODIFIER");
 
 	check_value("localized, lang+(bad)country+(bad)modifier", localized_str,
 			sizeof(localized_str) - 1, "lang_BAD@BAD", SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, true,
-			"lang", SFDO_NT);
+			"lang");
 
 	check_value("localized, lang2", localized_str, sizeof(localized_str) - 1, "default",
-			SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, true, "default", SFDO_NT);
+			SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, true, "default");
 
 	check_value("localized, lang2+country", localized_str, sizeof(localized_str) - 1,
-			"lang2_COUNTRY", SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, true, "lang2_COUNTRY",
-			SFDO_NT);
+			"lang2_COUNTRY", SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, true, "lang2_COUNTRY");
 
 	check_value("localized, lang2+modifier", localized_str, sizeof(localized_str) - 1,
-			"lang2@MODIFIER", SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, true, "lang2@MODIFIER",
-			SFDO_NT);
+			"lang2@MODIFIER", SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, true, "lang2@MODIFIER");
 
 	check_value("localized, lang2+country+modifier", localized_str, sizeof(localized_str) - 1,
-			"lang2_COUNTRY@MODIFIER", SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, true, "lang2_COUNTRY",
-			SFDO_NT);
+			"lang2_COUNTRY@MODIFIER", SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, true,
+			"lang2_COUNTRY");
 
 	// Lists
 
 	check_value_list("list with one item",
 			"[Group]\n"
 			"key = single",
-			SFDO_NT, NULL, SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, false, 1, "single", SFDO_NT);
+			SFDO_NT, NULL, SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, false, 1, "single");
 
 	check_value_list("list with zero items",
 			"[Group]\n"
@@ -340,43 +330,38 @@ int main(void) {
 	check_value_list("list with two items",
 			"[Group]\n"
 			"key = alpha;beta",
-			SFDO_NT, NULL, SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, false, 2, "alpha", SFDO_NT,
-			"beta", SFDO_NT);
+			SFDO_NT, NULL, SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, false, 2, "alpha", "beta");
 
 	check_value_list("list with two items + trailing separator",
 			"[Group]\n"
 			"key = alpha;beta;",
-			SFDO_NT, NULL, SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, false, 2, "alpha", SFDO_NT,
-			"beta", SFDO_NT);
+			SFDO_NT, NULL, SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, false, 2, "alpha", "beta");
 
 	check_value_list("list with two items, the first is empty",
 			"[Group]\n"
 			"key = ;beta",
-			SFDO_NT, NULL, SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, false, 2, "", SFDO_NT, "beta",
-			SFDO_NT);
+			SFDO_NT, NULL, SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, false, 2, "", "beta");
 
 	check_value_list("list with two items, the second is empty",
 			"[Group]\n"
 			"key = alpha;;",
-			SFDO_NT, NULL, SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, false, 2, "alpha", SFDO_NT, "",
-			SFDO_NT);
+			SFDO_NT, NULL, SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, false, 2, "alpha", "");
 
 	check_value_list("list with one empty item",
 			"[Group]\n"
 			"key = ;",
-			SFDO_NT, NULL, SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, false, 1, "", SFDO_NT);
+			SFDO_NT, NULL, SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, false, 1, "");
 
 	check_value_list("list with three items, the second is empty",
 			"[Group]\n"
 			"key = foo;;bar",
-			SFDO_NT, NULL, SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, false, 3, "foo", SFDO_NT, "",
-			SFDO_NT, "bar", SFDO_NT);
+			SFDO_NT, NULL, SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, false, 3, "foo", "", "bar");
 
 	check_value_list("list with items with escaped separators",
 			"[Group]\n"
 			"key = Steins\\;Gate;Chaos\\;Head;",
-			SFDO_NT, NULL, SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, false, 2, "Steins;Gate", SFDO_NT,
-			"Chaos;Head", SFDO_NT);
+			SFDO_NT, NULL, SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, false, 2, "Steins;Gate",
+			"Chaos;Head");
 
 	return 0;
 }
