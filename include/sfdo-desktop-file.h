@@ -1,6 +1,10 @@
 #ifndef SFDO_DESKTOP_FILE_H
 #define SFDO_DESKTOP_FILE_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -124,5 +128,9 @@ const struct sfdo_string *sfdo_desktop_file_entry_get_localized_value_list(
 // The location is saved to line and column. line and column may be NULL.
 void sfdo_desktop_file_entry_get_location(
 		struct sfdo_desktop_file_entry *entry, int *line, int *column);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

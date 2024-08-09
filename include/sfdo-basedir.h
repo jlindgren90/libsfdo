@@ -1,6 +1,10 @@
 #ifndef SFDO_BASEDIR_H
 #define SFDO_BASEDIR_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <sfdo-common.h>
 #include <stdbool.h>
 
@@ -77,5 +81,9 @@ const char *sfdo_basedir_get_cache_home(struct sfdo_basedir_ctx *ctx, size_t *le
 //
 // Returns NULL if the corresponding environment variable is unset or invalid.
 const char *sfdo_basedir_get_runtime_dir(struct sfdo_basedir_ctx *ctx, size_t *len);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

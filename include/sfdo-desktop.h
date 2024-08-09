@@ -1,6 +1,10 @@
 #ifndef SFDO_DESKTOP_H
 #define SFDO_DESKTOP_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <sfdo-common.h>
 #include <stdbool.h>
 
@@ -297,5 +301,9 @@ const char **sfdo_desktop_exec_command_get_args(
 //
 // command may be NULL, in which case the function is no-op.
 void sfdo_desktop_exec_command_destroy(struct sfdo_desktop_exec_command *command);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

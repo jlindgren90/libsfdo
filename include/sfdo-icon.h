@@ -1,6 +1,10 @@
 #ifndef SFDO_ICON_H
 #define SFDO_ICON_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <sfdo-common.h>
 #include <stdbool.h>
 
@@ -136,5 +140,9 @@ const char *sfdo_icon_file_get_path(struct sfdo_icon_file *file, size_t *len);
 
 // Get an icon file format.
 enum sfdo_icon_file_format sfdo_icon_file_get_format(struct sfdo_icon_file *file);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
