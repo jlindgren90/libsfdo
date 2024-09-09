@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <limits.h>
 #include <sfdo-icon.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -73,7 +74,7 @@ static const struct sfdo_icon_image *node_lookup_icon(struct sfdo_icon_theme_nod
 	}
 
 	const struct sfdo_icon_image *best = NULL;
-	int best_dist;
+	int best_dist = INT_MAX;
 	const struct sfdo_icon_image *img;
 	for (size_t i = list->start_i; i != (size_t)-1; i = img->next_i) {
 		img = &state->images[i];

@@ -515,7 +515,7 @@ static enum sfdo_desktop_entry_load_result exec_add_quoted(struct sfdo_desktop_l
 	++scanner->i; // Skip the opening quote
 
 	char escape = '\0';
-	size_t escape_i;
+	size_t escape_i = 0;
 	while (true) {
 		if (scanner->i == scanner->data_len) {
 			logger_write(logger, SFDO_LOG_LEVEL_ERROR, "%d:%d: unclosed quote at position %zu",
