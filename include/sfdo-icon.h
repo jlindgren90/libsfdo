@@ -61,7 +61,9 @@ enum sfdo_icon_theme_lookup_options {
 
 // Create a context.
 //
-// basedir_ctx is used to create the default list of paths which are scanned for icon themes.
+// basedir_ctx is used to create the default list of paths which are scanned for icon themes. Once
+// the context is created, basedir_ctx is not referenced anymore and can be destroyed.
+//
 // basedir_ctx may be NULL, in which case the default list is empty.
 //
 // Returns NULL on memory allocation error.

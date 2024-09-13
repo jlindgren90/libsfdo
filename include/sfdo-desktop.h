@@ -47,7 +47,9 @@ struct sfdo_desktop_entry_action;
 // Create a context.
 //
 // basedir_ctx is used to create the default list of paths which are scanned for desktop entry
-// files. basedir_ctx may be NULL, in which case the default list is empty.
+// files. Once the context is created, basedir_ctx is not referenced anymore and can be destroyed.
+//
+// basedir_ctx may be NULL, in which case the default list is empty.
 //
 // Returns NULL on memory allocation error.
 struct sfdo_desktop_ctx *sfdo_desktop_ctx_create(struct sfdo_basedir_ctx *basedir_ctx);
