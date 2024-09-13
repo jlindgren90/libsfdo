@@ -149,7 +149,7 @@ int main(void) {
 	struct sfdo_desktop_ctx *ctx = sfdo_desktop_ctx_create(NULL);
 	sfdo_desktop_ctx_set_log_handler(ctx, SFDO_LOG_LEVEL_DEBUG, log_handler, NULL);
 
-	struct sfdo_string basedirs[] = {
+	static const struct sfdo_string basedirs[] = {
 		{
 			.data = "desktop/basedir1",
 			.len = 16,
