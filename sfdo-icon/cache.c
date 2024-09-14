@@ -36,25 +36,31 @@ struct sfdo_icon_cache {
 };
 
 static inline bool read_card16(struct sfdo_icon_cache *cache, size_t offset, uint16_t *out) {
-	if (offset + 2 > cache->size) {
+	if (offset > cache->size - 2) {
 		return false;
 	}
-	*out = htons(*(uint16_t *)(cache->data + offset));
+	const uint8_t *data = (uint8_t *)&cache->data[offset];
+	*out = (uint16_t)(((uint16_t)data[0] << 8) | ((uint16_t)data[1] << 0));
 	return true;
 }
 
 static inline bool read_card32(struct sfdo_icon_cache *cache, size_t offset, uint32_t *out) {
-	if (offset + 4 > cache->size) {
+	if (offset > cache->size - 4) {
 		return false;
 	}
-	*out = htonl(*(uint32_t *)(cache->data + offset));
+	const uint8_t *data = (uint8_t *)&cache->data[offset];
+	*out = (uint32_t)(((uint32_t)data[0] << 24) | ((uint32_t)data[1] << 16) |
+			((uint32_t)data[2] << 8) | ((uint32_t)data[3] << 0));
 	return true;
 }
 
 static inline bool read_str(
 		struct sfdo_icon_cache *cache, size_t offset, const char **out, size_t *out_len) {
+	if (offset > cache->size) {
+		return false;
+	}
 	size_t limit = cache->size - offset;
-	*out = cache->data + offset;
+	*out = &cache->data[offset];
 	*out_len = strnlen(*out, limit);
 	return *out_len < limit;
 }
