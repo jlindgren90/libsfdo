@@ -5,6 +5,10 @@ include:
 
 variables:
   FDO_UPSTREAM_REPO: vyivel/libsfdo
+  MESON_COMMON_OPTIONS: >
+    --fatal-meson-warnings
+    -Dwerror=true
+    -Db_sanitize=address,undefined
 
 stages:
   - prep
@@ -24,46 +28,88 @@ stages:
     - .policy
   variables:
     FDO_DISTRIBUTION_VERSION: "40"
-    FDO_DISTRIBUTION_TAG: "2024-08-06.0"
+    FDO_DISTRIBUTION_TAG: "2024-09-14.2"
 
-fedora-40:
+prep-fedora-40:
   extends:
     - .fdo.container-build@fedora
     - .fedora-40
   stage: prep
   variables:
     GIT_STRATEGY: none
-    FDO_DISTRIBUTION_PACKAGES: "git-core gcc pkgconf-pkg-config meson lcov libasan libubsan clang-tools-extra"
+    FDO_DISTRIBUTION_PACKAGES: >
+      git-core
+      pkgconf-pkg-config
+      meson
+      lcov
+      clang-tools-extra
+      gcc
+      clang
+      lld
+      compiler-rt
+      libasan
+      libubsan
+      libasan-static
+      libubsan-static
 
-clang-format:
+.image-fedora:
   extends:
     - .fdo.distribution-image@fedora
     - .fedora-40
+
+clang-format:
+  extends:
+    - .image-fedora
   stage: style-check
   script:
     - meson setup build/
     - ninja -C build/ clang-format-check
 
-build:
+.build-and-test:
   extends:
-    - .fdo.distribution-image@fedora
-    - .fedora-40
+    - .image-fedora
   stage: build
   script:
-    # Setup
     - >
       meson setup build/
-      --fatal-meson-warnings
-      -Dwerror=true
-      -Dbuildtype=debug
-      -Doptimization=0
-      -Db_sanitize=address,undefined
-      -Db_coverage=true
-    # Build
+      ${MESON_COMMON_OPTIONS}
+      ${MESON_OPTIONS}
     - ninja -C build/ -k0 -j${FDO_CI_CONCURRENT:-4}
-    # Setup coverage
+    - meson test -C build/ --num-processes ${FDO_CI_CONCURRENT:-4}
+  artifacts:
+    when: always
+    expire_in: 1 week
+    paths:
+      - "build/meson-logs"
+
+build:
+  extends:
+    - .build-and-test
+
+build-clang:
+  extends:
+    - .build-and-test
+  variables:
+    CC: clang
+    CC_LD: lld
+    MESON_OPTIONS: >
+      -Db_lundef=false
+
+build-release:
+  extends:
+    - .build-and-test
+  variables:
+    MESON_OPTIONS: >
+      -Dbuildtype=release
+
+build-coverage:
+  extends:
+    - .image-fedora
+  stage: build
+  script:
+    - meson setup build/ ${MESON_COMMON_OPTIONS} -Db_coverage=true
+    - ninja -C build/ -k0 -j${FDO_CI_CONCURRENT:-4}
     - mkdir -p build-coverage/
-    # Baseline coverage data
     - >
       lcov
       --config-file .lcovrc
@@ -71,16 +117,13 @@ build:
       --capture
       --initial
       --output-file "build-coverage/baseline.lcov"
-    # Run tests
-    - meson test -C build --num-processes ${FDO_CI_CONCURRENT:-4}
-    # Test coverage data
+    - meson test -C build/ --num-processes ${FDO_CI_CONCURRENT:-4}
     - >
       lcov
       --config-file .lcovrc
       --directory build/
       --capture
       --output-file "build-coverage/test.lcov"
-    # Combined coverage data
     - >
       lcov
       --add-tracefile "build-coverage/baseline.lcov"
