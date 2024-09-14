@@ -152,7 +152,6 @@ int main(void) {
 
 	load_error("invalid UTF-8", "[Group\xffName]\n", SFDO_NT, NULL,
 			SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, SFDO_DESKTOP_FILE_ERROR_UTF8, 1, 7);
-	// TODO: more utf-8 checks
 
 	load_error("bad group char", "[Group[]\n", SFDO_NT, NULL,
 			SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, SFDO_DESKTOP_FILE_ERROR_SYNTAX, 1, 7);
@@ -224,7 +223,7 @@ int main(void) {
 			"key=value\n",
 			SFDO_NT, NULL, SFDO_DESKTOP_FILE_LOAD_OPTIONS_DEFAULT, false, "value");
 
-	// TODO: *trailing* spaces are not ignored, investigate what other impls do
+	// NB: trailing spaces are not ignored, same as GLib
 	check_value("simple value with spaces",
 			"  [Group]  \n"
 			"   key    =    value\n",
