@@ -17,6 +17,12 @@ tests = [
       sfdo_desktop,
     ],
   },
+  {
+    'name': 'icon',
+    'deps': [
+      sfdo_icon,
+    ],
+  },
 ]
 
 foreach template : tests

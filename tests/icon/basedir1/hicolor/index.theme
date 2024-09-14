@@ -1,0 +1,13 @@
+[Icon Theme]
+Name=basic
+Comment=basic
+
+Directories=fixed,scalable/nested
+
+[fixed]
+Size=16
+Type=Fixed
+
+[scalable/nested]
+Size=32
+Type=Scalable

@@ -1,0 +1,17 @@
+[Icon Theme]
+Name=cached
+Comment=cached
+
+Directories=placeholder,22x22,24x24
+
+[placeholder]
+Size=24
+Type=Fixed
+
+[22x22]
+Size=22
+Type=Fixed
+
+[24x24]
+Size=24
+Type=Fixed

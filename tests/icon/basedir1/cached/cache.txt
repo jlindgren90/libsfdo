@@ -1,0 +1,7 @@
+24x24/foo.png
+24x24/something.svg
+
+24x24/multi.png
+
+22x22/multi.svg
+22x22/multi.xpm

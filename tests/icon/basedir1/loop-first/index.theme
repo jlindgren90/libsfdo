@@ -1,0 +1,10 @@
+[Icon Theme]
+Name=loop-first
+Comment=loop-first
+Inherits=loop-second
+
+Directories=dir
+
+[dir]
+Size=16
+Type=Fixed
