@@ -159,7 +159,7 @@ int main(int argc, char **argv) {
 			strs = sfdo_desktop_entry_get_keywords(entry, &n_strs);
 			print_list("Keywords", strs, n_strs);
 
-			const char *startup_notify;
+			const char *startup_notify = NULL;
 			switch (sfdo_desktop_entry_get_startup_notify(entry)) {
 			case SFDO_DESKTOP_ENTRY_STARTUP_NOTIFY_FALSE:
 				startup_notify = "false";
@@ -171,6 +171,7 @@ int main(int argc, char **argv) {
 				startup_notify = "unknown";
 				break;
 			}
+			assert(startup_notify != NULL);
 			printf("StartupNotify: %s\n", startup_notify);
 
 			str = sfdo_desktop_entry_get_startup_wm_class(entry, &str_len);
