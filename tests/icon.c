@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/time.h>
 
 static void log_handler(enum sfdo_log_level level, const char *fmt, va_list args, void *data) {
 	(void)level;
@@ -102,6 +103,9 @@ static void lookup_error(const char *case_name, struct sfdo_icon_theme *theme, c
 }
 
 int main(void) {
+	// Update cache mtime to ensure it's not stale
+	utimes("icon/basedir1/cached/icon-theme.cache", NULL);
+
 	struct sfdo_icon_ctx *ctx = sfdo_icon_ctx_create(NULL);
 	sfdo_icon_ctx_set_log_handler(ctx, SFDO_LOG_LEVEL_DEBUG, log_handler, NULL);
 
