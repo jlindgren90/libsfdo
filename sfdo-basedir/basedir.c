@@ -6,6 +6,7 @@
 #include "common/api.h"
 #include "common/membuild.h"
 #include "common/path.h"
+#include "common/size.h"
 #include "common/striter.h"
 
 #define DATA_HOME_FALLBACK "/.local/share/"
@@ -47,7 +48,7 @@ static inline bool is_absolute(const char *path) {
 
 static inline void finalize_dir(struct sfdo_membuild *mem_buf, struct sfdo_string *dir) {
 	dir->len = (size_t)(mem_buf->data + mem_buf->len - dir->data);
-	sfdo_membuild_add(mem_buf, "", 1, NULL);
+	sfdo_membuild_add(mem_buf, "", SFDO_SIZE1, NULL);
 }
 
 static bool init_dir_list(struct sfdo_string **ptr, char **mem_ptr, size_t *n_dirs_ptr,
@@ -109,7 +110,7 @@ static bool init_dir_list(struct sfdo_string **ptr, char **mem_ptr, size_t *n_di
 	if (home_var_path_valid) {
 		sfdo_membuild_add(&mem_buf, home_var_path, home_path_len, NULL);
 		if (sfdo_path_needs_extra_slash(home_var_path, home_path_len)) {
-			sfdo_membuild_add(&mem_buf, "/", 1, NULL);
+			sfdo_membuild_add(&mem_buf, "/", SFDO_SIZE1, NULL);
 		}
 	} else {
 		sfdo_membuild_add(&mem_buf, home, home_len, home_fallback, home_fallback_len, NULL);
@@ -126,7 +127,7 @@ static bool init_dir_list(struct sfdo_string **ptr, char **mem_ptr, size_t *n_di
 
 			sfdo_membuild_add(&mem_buf, path, path_len, NULL);
 			if (sfdo_path_needs_extra_slash(path, path_len)) {
-				sfdo_membuild_add(&mem_buf, "/", 1, NULL);
+				sfdo_membuild_add(&mem_buf, "/", SFDO_SIZE1, NULL);
 			}
 
 			finalize_dir(&mem_buf, dir);
@@ -173,7 +174,7 @@ static bool init_dir(struct sfdo_string *ptr, char **mem_ptr, const char *home, 
 	if (var_path_valid) {
 		sfdo_membuild_add(&mem_buf, var_path, path_len, NULL);
 		if (sfdo_path_needs_extra_slash(var_path, path_len)) {
-			sfdo_membuild_add(&mem_buf, "/", 1, NULL);
+			sfdo_membuild_add(&mem_buf, "/", SFDO_SIZE1, NULL);
 		}
 	} else {
 		sfdo_membuild_add(&mem_buf, home, home_len, home_fallback, home_fallback_len, NULL);

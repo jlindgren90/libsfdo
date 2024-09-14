@@ -11,6 +11,7 @@
 #include "common/api.h"
 #include "common/dirs.h"
 #include "common/grow.h"
+#include "common/size.h"
 #include "common/strbuild.h"
 #include "common/striter.h"
 #include "common/strpool.h"
@@ -1235,11 +1236,11 @@ static bool scan_dir(struct sfdo_desktop_loader *loader, size_t basedir_len) {
 		}
 
 		if (S_ISDIR(statbuf.st_mode)) {
-			if (!sfdo_strbuild_add(ib, name, name_len, "-", 1, NULL)) {
+			if (!sfdo_strbuild_add(ib, name, name_len, "-", SFDO_SIZE1, NULL)) {
 				logger_write_oom(logger);
 				goto end;
 			}
-			if (!sfdo_strbuild_add(pb, "/", 1, NULL)) {
+			if (!sfdo_strbuild_add(pb, "/", SFDO_SIZE1, NULL)) {
 				logger_write_oom(logger);
 				goto end;
 			}

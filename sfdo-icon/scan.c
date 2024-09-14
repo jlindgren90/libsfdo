@@ -8,6 +8,7 @@
 
 #include "common/api.h"
 #include "common/grow.h"
+#include "common/size.h"
 #include "common/strpool.h"
 #include "sfdo-icon/internal.h"
 
@@ -251,7 +252,7 @@ static bool rescan_node(struct sfdo_icon_theme_node *node, struct sfdo_icon_them
 
 			sfdo_strbuild_reset(pb);
 			if (!sfdo_strbuild_add(pb, basedir->data, basedir->len, node->name, node->name_len, "/",
-						1, subdir->path.data, subdir->path.len, NULL)) {
+						SFDO_SIZE1, subdir->path.data, subdir->path.len, NULL)) {
 				logger_write_oom(logger);
 				goto end;
 			}
@@ -408,7 +409,7 @@ static bool node_check_stale(
 
 			sfdo_strbuild_reset(pb);
 			if (!sfdo_strbuild_add(pb, basedir->data, basedir->len, node->name, node->name_len, "/",
-						1, subdir->path.data, subdir->path.len, NULL)) {
+						SFDO_SIZE1, subdir->path.data, subdir->path.len, NULL)) {
 				logger_write_oom(logger);
 				return false;
 			}
