@@ -82,10 +82,6 @@ clang-format:
     paths:
       - "build/meson-logs"
 
-build:
-  extends:
-    - .build-and-test
-
 build-clang:
   extends:
     - .build-and-test
