@@ -30,18 +30,27 @@ class Cache:
         self.data.extend(data)
         return Hole(addr, size)
 
-    def alloc_s(self, s):
-        return self.alloc(len(s) + 1)
+    def alloc16(self):
+        return self.alloc(2)
+
+    def alloc32(self):
+        return self.alloc(4)
 
     def write(self, hole, n):
         # Big-endian
         for i in range(hole.size):
             self.data[hole.addr + hole.size - i - 1] = (n >> (8 * i)) & 0xFF
 
-    def write_s(self, hole, s):
-        b = s.encode() + b"\0"
-        for i in range(hole.size):
-            self.data[hole.addr + i] = b[i]
+    def push16(self, n):
+        self.write(self.alloc16(), n)
+
+    def push32(self, n):
+        self.write(self.alloc32(), n)
+
+    def push_strings(self, str_dict):
+        for s, hole in str_dict.items():
+            self.write(hole, self.curr())
+            self.data.extend(s.encode() + b"\0")
 
     def curr(self):
         return len(self.data)
@@ -65,27 +74,25 @@ def main():
     cache = Cache()
 
     # MAJOR_VERSION
-    cache.write(cache.alloc(2), 1)
+    cache.push16(1)
     # MINOR_VERSION
-    cache.write(cache.alloc(2), 0)
+    cache.push16(0)
 
     # HASH_OFFSET
-    hash_off_hole = cache.alloc(4)
+    hash_off_hole = cache.alloc32()
     # DIRECTORY_LIST_OFFSET
-    dir_list_off_hole = cache.alloc(4)
+    dir_list_off_hole = cache.alloc32()
 
     cache.write(dir_list_off_hole, cache.curr())
     # N_DIRECTORIES
-    cache.write(cache.alloc(4), len(dir_map))
+    cache.push32(len(dir_map))
 
-    dir_holes = [None for _ in range(len(dir_map))]
-    for dir, i in dir_map.items():
+    dir_holes = dict()
+    for dir in dir_map.keys():
         # DIRECTORY_OFFSET
-        dir_holes[i] = (cache.alloc(4), dir)
+        dir_holes[dir] = cache.alloc32()
 
-    for hole, dir in dir_holes:
-        cache.write(hole, cache.curr())
-        cache.write_s(cache.alloc_s(dir), dir)
+    cache.push_strings(dir_holes)
 
     buckets = [[] for _ in range(31)]
 
@@ -96,36 +103,34 @@ def main():
 
     cache.write(hash_off_hole, cache.curr())
     # N_BUCKETS
-    cache.write(cache.alloc(4), len(buckets))
+    cache.push32(len(buckets))
 
     bucket_holes = []
     for _ in range(len(buckets)):
         # ICON_OFFSET
-        bucket_holes.append(cache.alloc(4))
+        bucket_holes.append(cache.alloc32())
 
     name_holes = dict()
     list_holes = dict()
     for i, b in enumerate(buckets):
         hole = bucket_holes[i]
-        for line in b:
+        for name in b:
             cache.write(hole, cache.curr())
             # CHAIN_OFFSET
-            hole = cache.alloc(4)
+            hole = cache.alloc32()
             # NAME_OFFSET
-            name_holes[line] = cache.alloc(4)
+            name_holes[name] = cache.alloc32()
             # IMAGE_LIST_OFFSET
-            list_holes[line] = cache.alloc(4)
+            list_holes[name] = cache.alloc32()
         cache.write(hole, END)
 
-    for line in icon_map.keys():
-        cache.write(name_holes[line], cache.curr())
-        cache.write_s(cache.alloc_s(line), line)
+    cache.push_strings(name_holes)
 
-    for line, dirs in icon_map.items():
-        hole = list_holes[line]
+    for name, dirs in icon_map.items():
+        hole = list_holes[name]
         cache.write(hole, cache.curr())
         # N_IMAGES
-        cache.write(cache.alloc(4), len(dirs))
+        cache.push32(len(dirs))
         for dir_i, exts in dirs.items():
             flags = 0
             if "xpm" in exts:
@@ -135,11 +140,11 @@ def main():
             if "png" in exts:
                 flags |= 4
             # DIRECTORY_INDEX
-            cache.write(cache.alloc(2), dir_i)
+            cache.push16(dir_i)
             # FLAGS
-            cache.write(cache.alloc(2), flags)
+            cache.push16(flags)
             # IMAGE_DATA_OFFSET
-            cache.write(cache.alloc(4), END)
+            cache.push32(END)
 
     cache_path = sys.argv[2]
     cache_file = open(cache_path, "wb")
