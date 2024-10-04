@@ -173,6 +173,15 @@ const char *sfdo_desktop_entry_get_try_exec(struct sfdo_desktop_entry *entry, si
 // Returns NULL if the corresponding key is absent.
 struct sfdo_desktop_exec *sfdo_desktop_entry_get_exec(struct sfdo_desktop_entry *entry);
 
+// Get the first literal argument of the application's command template.
+// Typically this is the bare executable path (absolute or relative to $PATH) used to start
+// the application, minus any other arguments.
+//
+// The desktop entry type must be "Application".
+//
+// Returns NULL if the corresponding key is absent.
+const char *sfdo_desktop_entry_get_exec_arg0(struct sfdo_desktop_entry *entry);
+
 // Get the working directory to run the application in.
 //
 // The desktop entry type must be "Application".
