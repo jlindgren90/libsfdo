@@ -158,6 +158,8 @@ bool sfdo_desktop_entry_show_in(struct sfdo_desktop_entry *entry, const char *en
 // The desktop entry type must be "Application".
 bool sfdo_desktop_entry_get_dbus_activatable(struct sfdo_desktop_entry *entry);
 
+// Get the application's TryExec path (absolute or relative to $PATH).
+// If no executable file exists at this path then the application is likely not installed.
 //
 // The desktop entry type must be "Application".
 //
