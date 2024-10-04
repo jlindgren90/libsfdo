@@ -83,6 +83,14 @@ SFDO_API struct sfdo_desktop_exec *sfdo_desktop_entry_get_exec(struct sfdo_deskt
 	return &entry->app.exec;
 }
 
+SFDO_API const char *sfdo_desktop_entry_get_exec_arg0(struct sfdo_desktop_entry *entry) {
+	assert(entry->type == SFDO_DESKTOP_ENTRY_APPLICATION);
+	if (entry->app.exec.literals == NULL || entry->app.exec.n_literals < 1) {
+		return NULL;
+	}
+	return entry->app.exec.literals[0];
+}
+
 SFDO_API const char *sfdo_desktop_entry_get_path(struct sfdo_desktop_entry *entry, size_t *len) {
 	assert(entry->type == SFDO_DESKTOP_ENTRY_APPLICATION);
 	return unpack_string(&entry->app.path, len);
